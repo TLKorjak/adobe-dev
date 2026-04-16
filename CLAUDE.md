@@ -1,28 +1,52 @@
-# After Effects 2026 Workspace
+# Adobe Dev Workspace
 
-This repo is a workspace for automating and building things in Adobe After Effects 2026.
+This repo is a workspace for automating and building things in Adobe After Effects 2026 and Adobe Premiere Pro 2026.
 
-## Skill
+## Skills
 
-Always use the after-effects skill at `~/.agents/skills/after-effects` for all tasks. This includes writing scripts, applying expressions, changing properties, effects, layers, text, building extensions — anything that touches AE.
-https://github.com/aedev-tools/adobe-agent-skills
+Use the appropriate skill for each Adobe app:
 
-## AE Version
+| App | Skill | Path |
+|-----|-------|------|
+| After Effects | after-effects | `~/.agents/skills/after-effects` |
+| Premiere Pro | premiere-pro | `~/.agents/skills/premiere-pro` |
 
-- Adobe After Effects 2026 (version 26.x)
-- Config is set at `~/.ae-assistant-config`
+Always use the matching skill for all tasks. This includes writing scripts, applying expressions (AE), changing properties, effects, layers/clips, text, building extensions — anything that touches the app.
+
+AE skill source: https://github.com/aedev-tools/adobe-agent-skills
+
+## App Versions
+
+- Adobe After Effects 2026 (version 26.x) — config at `~/.ae-assistant-config`
+- Adobe Premiere Pro 2026 — config at `~/.ppro-assistant-config`
 
 ## Workflow
 
-- Follow the after-effects skill workflow (SKILL.md) for every task: gather context, load rules, generate scripts, execute via runner.sh
+- Follow each skill's workflow (SKILL.md) for every task: gather context, load rules, generate scripts, execute via runner.sh
 - Always query active state before making changes
-- Use `--background` flag for all read-only queries to avoid stealing focus from AE
+- Use `--background` flag for all read-only queries to avoid stealing focus
+
+## Key Differences Between AE and PPro Scripting
+
+| Aspect | After Effects | Premiere Pro |
+|--------|--------------|--------------|
+| Collections | 1-indexed | 0-indexed |
+| Timeline model | Compositions with layers | Sequences with tracks and clips |
+| Effects access | `layer.property()` with matchNames | `clip.components[i].properties[j]` |
+| Expressions | Rich expression language on properties | None — keyframed or static only |
+| Undo groups | `app.beginUndoGroup()` / `app.endUndoGroup()` | Not available |
+| Time | Seconds (float) throughout | Mixed: seconds, ticks, Time objects |
+| Rendering | `app.project.renderQueue` | `app.encoder` or `seq.exportAsMediaDirect()` |
+| API status | Actively developed | Frozen at v23.0 — moving to UXP |
 
 ## ExtendScript Quick Reference
 
 Full docs: https://extendscript.docsforadobe.dev/
+PPro scripting docs: https://ppro-scripting.docsforadobe.dev/
 
 ### Language Constraints (ES3)
+
+Both AE and PPro use the same ExtendScript engine with ES3 constraints:
 
 - `var` only — no `let`, `const`, arrow functions, template literals, destructuring, classes, promises
 - No `Array.forEach/map/filter/reduce/indexOf` — use `for` loops
@@ -38,6 +62,7 @@ Full docs: https://extendscript.docsforadobe.dev/
 | `#include "file.jsxinc"` | Include external script |
 | `#includepath "dir1;dir2"` | Set include search paths |
 | `#target aftereffects` | Target AE |
+| `#target premierepro` | Target PPro |
 | `#targetengine "main"` | Required for persistent palette windows |
 | `#strict on` | Strict error checking |
 
@@ -120,7 +145,7 @@ obj.reflect.methods;       // array of method info
 obj.reflect.find("open");  // info for specific member
 ```
 
-Useful for discovering available properties/methods on AE DOM objects at runtime.
+Useful for discovering available properties/methods on AE/PPro DOM objects at runtime.
 
 ### Key Gotchas
 
