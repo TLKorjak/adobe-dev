@@ -37,12 +37,14 @@ AE skill source: https://github.com/aedev-tools/adobe-agent-skills
 | Undo groups | `app.beginUndoGroup()` / `app.endUndoGroup()` | Not available |
 | Time | Seconds (float) throughout | Mixed: seconds, ticks, Time objects |
 | Rendering | `app.project.renderQueue` | `app.encoder` or `seq.exportAsMediaDirect()` |
-| API status | Actively developed | Frozen at v23.0 — moving to UXP |
+| API status | Actively developed | ExtendScript frozen at v23.0 — moving to UXP |
+| Modern plugins | N/A | UXP (ES6+, async, HTML/CSS UI) — PPro 25.6+ |
 
 ## ExtendScript Quick Reference
 
 Full docs: https://extendscript.docsforadobe.dev/
 PPro scripting docs: https://ppro-scripting.docsforadobe.dev/
+PPro UXP plugin docs: https://developer.adobe.com/premiere-pro/uxp/
 
 ### Language Constraints (ES3)
 
