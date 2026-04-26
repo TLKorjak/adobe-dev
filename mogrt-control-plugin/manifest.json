@@ -1,0 +1,29 @@
+{
+  "manifestVersion": 5,
+  "id": "tv.promots.mogrt-control",
+  "name": "MOGRT Control",
+  "version": "0.1.0",
+  "host": {
+    "app": "premierepro",
+    "minVersion": "25.6"
+  },
+  "main": "index.html",
+  "entrypoints": [
+    {
+      "type": "panel",
+      "id": "mainPanel",
+      "label": "MOGRT Control",
+      "minimumSize": { "width": 320, "height": 200 },
+      "preferredDockedSize": { "width": 360, "height": 400 }
+    }
+  ],
+  "requiredPermissions": {
+    "localFileSystem": "fullAccess",
+    "network": { "domains": "all" },
+    "clipboard": "readAndWrite"
+  },
+  "icons": [
+    { "width": 24, "height": 24, "path": "icons/icon-24.png", "scale": [1, 2], "theme": ["darkest", "dark", "light", "lightest", "all"], "species": ["chrome", "generic"] },
+    { "width": 48, "height": 48, "path": "icons/icon-48.png", "scale": [1, 2], "theme": ["darkest", "dark", "light", "lightest", "all"], "species": ["chrome", "generic"] }
+  ]
+}
