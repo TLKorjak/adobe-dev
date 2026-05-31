@@ -9,19 +9,42 @@ Google Sheet  →  generator  →  jobs/*.json  →  runner.jsx (via aerender)  
 ```
 Three layers, each replaceable independently. Sheet = human interface, JSON = machine interface, ExtendScript = AE interface.
 
+## Dynamic Elements (what changes per render)
+- **Comp:** fixed `1920 x 1080`, fixed duration.
+- **Video slots:** 1 or 2 clips per job. Each clip has a fixed duration and fixed timeline placement.
+- **Text layers:** 2–4 text fields per job, each addressed by a stable layer name.
+- **Logo slots:** 2 PNG logos per job, fixed placement on the timeline.
+- **Media dimensions:** all clips and logos are expected to match comp (1920×1080). If they don't, the runner applies **fit-to-fill** (scale so the asset covers the full 1920×1080 frame, center-anchored, crop overflow — no letterboxing, no distortion).
+
 ## 1. Template Setup (one-time, in AE)
-- Open the comp, rename the swap-target footage layer to `CLIP_SLOT`.
-- Rename each text layer to a stable ID: `TXT_TITLE`, `TXT_SUBTITLE`, `TXT_CTA`, etc.
-- Pre-trim/position `CLIP_SLOT` so in-point and 8s duration are locked — new clips inherit placement via `replaceSource`.
+- Open the comp (`1920x1080`, fixed duration).
+- Rename the swap-target footage layers to stable IDs:
+  - `CLIP_SLOT_1`, `CLIP_SLOT_2` — video. Slot 2 is optional per job; leave it in the template but the runner disables it (`layer.enabled = false`) when the manifest only provides one clip.
+  - `LOGO_SLOT_1`, `LOGO_SLOT_2` — PNG.
+- Pre-trim/position each slot so in-point and duration are locked. New media inherits placement via `replaceSource`.
+- Rename each text layer to a stable ID: `TXT_1`, `TXT_2`, `TXT_3`, `TXT_4` (or semantic: `TXT_TITLE`, `TXT_SUBTITLE`, …). Up to 4 expected; runner ignores keys not present in the manifest and leaves unused template layers at their default text.
 - Save as `template.aep`.
+
+### Fit-to-fill logic (runner-side, applied to every media swap — both `CLIP_SLOT_*` and `LOGO_SLOT_*`)
+For each swapped media layer, after `replaceSource`:
+1. Read incoming asset `width` / `height` from the imported `FootageItem`.
+2. If both match `1920` and `1080` → leave scale at 100%.
+3. Otherwise compute `scale = max(1920 / width, 1080 / height) * 100` and set the layer's `Scale` property to `[scale, scale]`. Anchor point and position stay at comp center so the asset covers the frame; overflow is cropped by the comp bounds.
+4. Force the imported footage's `pixelAspect = 1.0` to avoid non-square-pixel surprises.
+
+Logos and clips use the same logic — PNGs that are already 1920×1080 with their own transparency/composition baked in will pass through untouched; off-spec PNGs will scale-to-cover. If a logo is supposed to sit small in a corner rather than fill frame, it should be 1920×1080 with transparent padding around it (so fit-to-fill is a no-op).
 
 ## 2. Google Sheet (human interface)
 One row per render job. Columns map 1:1 to manifest fields:
 
-| clip_path | txt_title | txt_subtitle | txt_cta | output_path | status |
-|---|---|---|---|---|---|
-| /footage/a.mov | Hello | World | Buy now | /out/a.mov | pending |
-| /footage/b.mov | Bonjour | Monde | Achetez | /out/b.mov | pending |
+| clip_1 | clip_2 | logo_1 | logo_2 | txt_1 | txt_2 | txt_3 | txt_4 | output_path | status |
+|---|---|---|---|---|---|---|---|---|---|
+| /footage/a1.mov | /footage/a2.mov | /logos/brand.png | /logos/sponsor.png | Hello | World | Buy now | | /out/a.mov | pending |
+| /footage/b1.mov |  | /logos/brand.png | /logos/sponsor.png | Bonjour | Monde |  |  | /out/b.mov | pending |
+
+- `clip_2` blank → runner disables `CLIP_SLOT_2`.
+- `txt_3` / `txt_4` blank → those template text layers keep their default content (or are blanked, per config).
+- Both logo columns are required; blank logos → row marked `error`.
 
 Sheet hygiene:
 - `status` column values: `pending` / `queued` / `rendering` / `done` / `error`.
@@ -42,11 +65,23 @@ A ~50-line Node or Python script (`generate.js`):
    ```json
    {
      "row_id": 7,
-     "clip": "<clip_path>",
-     "text": { "TXT_TITLE": "<txt_title>", "TXT_SUBTITLE": "<txt_subtitle>", "TXT_CTA": "<txt_cta>" },
-     "output": "<output_path>"
+     "clips": {
+       "CLIP_SLOT_1": "/footage/a1.mov",
+       "CLIP_SLOT_2": "/footage/a2.mov"
+     },
+     "logos": {
+       "LOGO_SLOT_1": "/logos/brand.png",
+       "LOGO_SLOT_2": "/logos/sponsor.png"
+     },
+     "text": {
+       "TXT_1": "Hello",
+       "TXT_2": "World",
+       "TXT_3": "Buy now"
+     },
+     "output": "/out/a.mov"
    }
    ```
+   Omit keys for blank cells — runner treats missing keys as "leave template default" for text, "disable layer" for `CLIP_SLOT_2`.
 4. Update sheet cell `status = queued` for each emitted row.
 5. Validate paths exist (clip readable, output dir writable) before queuing; bad rows → `status = error` + `error_msg`.
 
@@ -54,14 +89,18 @@ Runs on a cron, file-watcher, or manual trigger — your choice.
 
 ## 4. Runner Script (ExtendScript, `runner.jsx`)
 Reads the manifest path from an env var or sidecar file, then:
-1. `app.open(File("template.aep"))`
-2. Import the new clip: `app.project.importFile(new ImportOptions(File(job.clip)))`
-3. Find `CLIP_SLOT` in the comp → `replaceSource(newFootage, false)` (preserves in-point, scale, transforms).
-4. For each text key, find layer by name, `property("Source Text").setValue(textDocument)` — use a `TextDocument` so styling is preserved.
+1. `app.open(File("template.aep"))`.
+2. For each entry in `job.clips` and `job.logos`:
+   - Import via `app.project.importFile(new ImportOptions(File(path)))`.
+   - Find the named layer (`CLIP_SLOT_1`, `CLIP_SLOT_2`, `LOGO_SLOT_1`, `LOGO_SLOT_2`) in the comp.
+   - `layer.replaceSource(newFootage, false)` (preserves in-point and existing transforms).
+   - Apply fit-to-fill scale (see §1) based on incoming `width`/`height`.
+3. If `CLIP_SLOT_2` is not in `job.clips`, set its layer `enabled = false` so it doesn't render.
+4. For each key in `job.text`: find layer by name, build a `TextDocument` from the existing source (to preserve font/size/color/styling), set `.text = value`, then `property("Source Text").setValue(textDoc)`. Missing keys → leave template default.
 5. Add comp to render queue, set Output Module template, `outputModule.file = new File(job.output)`.
 6. `app.project.renderQueue.render()` (blocking) — or invoke via `aerender` for headless.
-7. Remove the imported footage item to avoid project bloat; do NOT save the template.
-8. Write a small `<output>.status.json` sidecar with `{ row_id, status, error }` for the batch layer to pick up.
+7. Remove the imported footage items to avoid project bloat; do NOT save the template.
+8. Write a `<output>.status.json` sidecar with `{ row_id, status, error }` for the batch layer to pick up.
 
 Wrap in `app.beginUndoGroup` / `endUndoGroup` so a manual run is reversible.
 
@@ -85,8 +124,11 @@ rendering →  aerender exits != 0   →  error  (+ error_msg)
 This makes the sheet the single source of truth for "what's left to do" — anyone can glance at it and know the state.
 
 ## 7. Validation & Failure Modes
-- Missing layer name in comp → fail fast, write to `error_msg`, skip job.
-- Clip shorter than 8s → log warning; decide policy (stretch / letterbox / error).
+- Missing layer name in comp (e.g. `LOGO_SLOT_2` deleted from template) → fail fast, write to `error_msg`, skip job.
+- Missing required asset (any clip in `job.clips`, both logos) → row → `error`.
+- Clip duration shorter than slot duration → log warning; decide policy (freeze-frame end / error). Default: error.
+- Logo PNG without alpha channel → log warning; render proceeds (will show as opaque rectangle).
+- Off-spec dimensions on any asset → fit-to-fill applied silently; logged for review.
 - Font missing → AE silently substitutes; pre-flight via `textDocument.fontLocation`.
 - Output path exists → overwrite / version-suffix / error (configurable).
 - Sheet unreachable → generator/batch logs locally and retries; never crashes the runner.
