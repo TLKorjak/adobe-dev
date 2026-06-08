@@ -172,6 +172,10 @@ async function dispatch(cmd) {
     case 'activeState': return await activeState();
     case 'dumpSequence':return await dumpSequence();
     case 'describeClip':return await describeClip(cmd.track, cmd.clip);
+    case 'listMarkers': return await listMarkers();
+    case 'addMarker':   return await addMarkers({ markers: [{ seconds: cmd.seconds, name: cmd.name, comment: cmd.comment }], clearExisting: false });
+    case 'addMarkers':  return await addMarkers(cmd);
+    case 'clearMarkers':return await clearMarkers();
     default:            return { error: 'unknown command: ' + cmd.cmd };
   }
 }
@@ -298,6 +302,94 @@ async function describeClip(trackIdx, clipIdx) {
     out.components.push(compInfo);
   }
   return { ok: true, ...out };
+}
+
+// ---------- Markers ----------
+// Validated pattern (PPro 2026): markers = await ppro.Markers.getMarkers(seq);
+// build action with markers.createAddMarkerAction(name, type, startTickTime, durTickTime, comment),
+// then project.lockedAccess(() => project.executeTransaction(tx => tx.addAction(action), label)).
+// NOTE: Premiere disallows two sequence markers on the same frame — addMarkers merges
+// same-time entries into one marker by default (mergeSameTime !== false).
+async function getMarkersColl() {
+  const seq = await getSequence();
+  if (!seq) throw new Error('no active sequence');
+  const project = await getProject();
+  const markers = await ppro.Markers.getMarkers(seq);
+  return { seq: seq, project: project, markers: markers };
+}
+
+async function listMarkers() {
+  const ctx = await getMarkersColl();
+  const arr = await ctx.markers.getMarkers();
+  const out = [];
+  for (let i = 0; i < arr.length; i++) {
+    const mk = arr[i];
+    const row = { index: i };
+    try { row.name = await mk.getName(); } catch (e) {}
+    try { row.comment = await mk.getComments(); } catch (e) {}
+    try { const st = await mk.getStart(); row.startSeconds = st.seconds; } catch (e) {}
+    out.push(row);
+  }
+  return { ok: true, count: out.length, markers: out };
+}
+
+async function clearMarkers() {
+  const ctx = await getMarkersColl();
+  const arr = await ctx.markers.getMarkers();
+  const n = arr.length;
+  if (n) {
+    await ctx.project.lockedAccess(function () {
+      ctx.project.executeTransaction(function (tx) {
+        for (let i = 0; i < arr.length; i++) tx.addAction(ctx.markers.createRemoveMarkerAction(arr[i]));
+      }, 'Bridge: clear markers');
+    });
+  }
+  return { ok: true, removed: n };
+}
+
+// cmd: { markers:[{seconds,name,comment}], clearExisting?:bool, mergeSameTime?:bool(default true) }
+async function addMarkers(cmd) {
+  const list = (cmd && cmd.markers) || [];
+  if (!list.length) return { error: 'addMarkers requires a non-empty "markers" array' };
+  const ctx = await getMarkersColl();
+  const T = ppro.Marker.MARKER_TYPE_COMMENT;
+  const z = ppro.TickTime.TIME_ZERO;
+
+  if (cmd.clearExisting) await clearMarkers();
+
+  // merge same-time entries unless explicitly disabled
+  const merge = cmd.mergeSameTime !== false;
+  const order = [];
+  const groups = {};
+  for (let i = 0; i < list.length; i++) {
+    const m = list[i];
+    const key = merge ? String(m.seconds) : (i + '_' + m.seconds);
+    if (!groups[key]) { groups[key] = []; order.push(key); }
+    groups[key].push(m);
+  }
+
+  let added = 0;
+  await ctx.project.lockedAccess(function () {
+    ctx.project.executeTransaction(function (tx) {
+      for (let gi = 0; gi < order.length; gi++) {
+        const g = groups[order[gi]];
+        const seconds = g[0].seconds;
+        const names = [], comments = [];
+        for (let j = 0; j < g.length; j++) {
+          if (g[j].name) names.push(g[j].name);
+          if (g[j].comment) comments.push(g[j].comment);
+        }
+        const name = names.join(' / ') || '';
+        const comment = comments.join(' | ') || '';
+        const tt = ppro.TickTime.createWithSeconds(seconds);
+        tx.addAction(ctx.markers.createAddMarkerAction(String(name), T, tt, z, String(comment)));
+        added++;
+      }
+    }, 'Bridge: add ' + order.length + ' marker(s)');
+  });
+
+  const after = await ctx.markers.getMarkers();
+  return { ok: true, requested: list.length, markersAdded: added, markersNow: after.length };
 }
 
 // ---------- File IPC ----------
