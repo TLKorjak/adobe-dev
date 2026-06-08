@@ -1,0 +1,30 @@
+{
+  "manifestVersion": 5,
+  "id": "tv.promots.premiere-bridge",
+  "name": "Premiere Bridge",
+  "version": "0.1.0",
+  "host": {
+    "app": "premierepro",
+    "minVersion": "25.6"
+  },
+  "main": "index.html",
+  "entrypoints": [
+    {
+      "type": "panel",
+      "id": "mainPanel",
+      "label": "Premiere Bridge",
+      "minimumSize": { "width": 320, "height": 200 },
+      "preferredDockedSize": { "width": 380, "height": 460 }
+    }
+  ],
+  "requiredPermissions": {
+    "localFileSystem": "fullAccess",
+    "network": { "domains": "all" },
+    "clipboard": "readAndWrite",
+    "allowCodeGenerationFromStrings": true
+  },
+  "icons": [
+    { "width": 24, "height": 24, "path": "icons/icon-24.png", "scale": [1, 2], "theme": ["darkest", "dark", "light", "lightest", "all"], "species": ["chrome", "generic"] },
+    { "width": 48, "height": 48, "path": "icons/icon-48.png", "scale": [1, 2], "theme": ["darkest", "dark", "light", "lightest", "all"], "species": ["chrome", "generic"] }
+  ]
+}

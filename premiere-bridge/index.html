@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <style>
+    body { font-family: -apple-system, sans-serif; font-size: 12px; padding: 8px; color: #ddd; background: #2b2b2b; }
+    h2 { margin: 0 0 8px 0; font-size: 13px; }
+    .row { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; flex-wrap: wrap; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #888; display: inline-block; }
+    .dot.on { background: #4caf50; }
+    .dot.err { background: #e53935; }
+    .dot.busy { background: #ffb300; }
+    button { background: #444; color: #ddd; border: 1px solid #555; padding: 4px 8px; border-radius: 3px; cursor: pointer; }
+    button:hover { background: #555; }
+    .path { font-size: 10px; color: #888; word-break: break-all; margin-bottom: 6px; }
+    pre { background: #1e1e1e; color: #c5c5c5; padding: 6px; height: 300px; overflow: auto; font-size: 11px; margin: 0; border: 1px solid #444; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h2>Premiere Bridge</h2>
+  <div class="row">
+    <span id="dot" class="dot"></span>
+    <span id="status">starting…</span>
+  </div>
+  <div class="path" id="ipcpath"></div>
+  <div class="row">
+    <button id="ping">Ping</button>
+    <button id="state">Active state</button>
+    <button id="copy">Copy log</button>
+    <button id="clear">Clear log</button>
+  </div>
+  <pre id="log"></pre>
+  <script src="index.js"></script>
+</body>
+</html>
