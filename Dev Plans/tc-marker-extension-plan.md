@@ -1,112 +1,152 @@
-# TC Marker Tool — Premiere Dockable Extension Plan
+# TC Marker Tool — Premiere Dockable Extension Plan (DOCX-primary)
 
-**Status:** Planned (not built)
-**Date:** 2026-06-10
-**Goal:** Package the `drop_tc_markers.js` workflow into a self-contained, dockable Premiere Pro 2026 panel that loads a transcript PDF, extracts the timecodes from its `tc` column, and applies sequence markers to the active timeline — with buttons, no terminal / `send.sh` / eval.
+**Status:** Core pipeline validated end-to-end (see "Validated this session"). Panel not yet built.
+**Updated:** 2026-06-14
+**Goal:** An **independent, deployable UXP tool** for Premiere Pro 2026 — a dockable panel that loads a transcript **.docx**, finds the **yellow-highlighted syncs**, and drops a sequence marker on the active timeline for **each highlighted sync only**: **red (color 1) + a comment** (first 5 words of the highlighted text). Non-highlighted timecodes are ignored. Self-contained (no terminal, no `send.sh`, no eval bridge), installable on multiple Premiere machines.
 
 ---
 
 ## Terminology: "extension" vs "plugin"
 
-In Premiere Pro 2026 these are effectively the same thing:
-
-- A dockable panel **is** a **UXP plugin with a `panel` entrypoint**. Once loaded it appears under the Window menu and docks like any native panel. "UXP plugin" is just the package name; the dockable thing the user sees *is* the extension. (`premiere-bridge` already docks this way today.)
-- The older thing literally called an **"Extension" (CEP / ZXP)** is **legacy and deprecated** — Adobe is removing CEP from Premiere. CEP panels on PPro 2026 are unsupported/flaky and would lose the modern file/network APIs we rely on.
-
-**Decision:** build a standalone UXP plugin = standalone dockable extension. This is the supported equivalent of a CEP extension, already proven to work in this exact PPro 2026 + UXP setup. No upside to CEP, real downside (deprecation, weaker file I/O).
+In PPro 2026 these are the same thing: a dockable panel **is** a **UXP plugin with a `panel` entrypoint** — it appears under the Window menu and docks like a native panel. The old CEP/ZXP "Extension" is deprecated and would lose modern file APIs. So this *is* the extension, built the supported way.
 
 ---
 
-## Source PDF format (grounds the parser)
+## Input format decision: DOCX-primary
 
-Based on `איילה_חסון_מאוחד.pdf` — assume future PDFs match this layout.
+The fragile part of the original idea was reading **yellow** out of a PDF — color there is either a real annotation or baked-in paint, and the baked case needs page rendering + pixel detection. **DOCX removes that problem entirely:** highlighting is an explicit attribute on the text run.
 
-A multi-page table, three columns: a tiny empty `src_id`, a middle `tc` column, and `מלל` (transcript text) on the right.
+```xml
+<w:r>
+  <w:rPr><w:highlight w:val="yellow"/></w:rPr>   <!-- Word highlighter pen -->
+  <w:t>the selected sync text…</w:t>
+</w:r>
+```
+(Google Docs export uses `<w:shd w:fill="FFFF00"/>` instead — both detected.)
 
-- **The `tc` column** holds `HH:MM:SS:FF` values (e.g. `16:36:13:00`). Only rows that start a new timecode have one; most text rows have an empty `tc` cell.
-- **Every real `tc` value ends in `:00` frames** in this file (whole-second granularity) — a useful secondary signal, but not relied upon.
-- **Divider rows that must be EXCLUDED** (these tripped us up in the manual pass):
-  - `TC 00:36:41:00` — reel/offset divider (note: ends in `:00`, so frame value alone can't filter it).
-  - `TC 17:51:09:09` — section divider.
-  - `סוף קלטת 18:22:30:23 TC` and `סוף קלטת 19:30:32:27 TC` — "end of tape" rows.
-- **No spurious `HH:MM:SS:FF` strings appear in dialogue.** People say years (`48'`, `2023`), `16:8`, etc. — never a full 4-field timecode. So the regex `\d{2}:\d{2}:\d{2}:\d{2}` is highly specific.
+Text and highlight travel together → no rendering, no geometry mapping, Hebrew/RTL intact.
 
-**Extraction rule:** grab every `\d{2}:\d{2}:\d{2}:\d{2}` token, then drop any whose adjacent text is the literal `TC` or `סוף קלטת`. That cleanly separates the ~334 real markers from the 4 dividers — no hand-curated list. This is the `drop_tc_markers.js` logic, automated.
+| Format | Keeps "highlight with a pen" UX | Text↔highlight link | Rendering | Verdict |
+|---|---|---|---|---|
+| **DOCX (highlighter)** | ✅ | direct (same run) | none | **primary** |
+| CSV / Google Sheet | ❌ needs a column | direct | none | alt (most robust parse) |
+| PDF highlight *annotation* | ✅ | indirect (quadpoints→text) | none | fallback |
+| PDF yellow *fill* (original) | ✅ | indirect, fragile | **required** | last resort |
 
-> Note: the PDF is "Part 1". A separate part/cam likely covers the tail timecodes (`18:42:27` → `18:58:00`) that fell past this clip's end. One PDF → one sequence.
-
----
-
-## The real technical risk: parsing a PDF inside UXP
-
-UXP has no built-in PDF reader. The only self-contained option is to **bundle a JS PDF library (`pdfjs-dist` legacy build)** and call `getDocument({data})` → `getTextContent()` per page. We need *text only*, not rendering, so the usual pdf.js-in-UXP pain points (canvas, fonts, eval) are mostly avoided; the manifest already grants `allowCodeGenerationFromStrings`.
-
-**This must be spiked and proven first** (go/no-go gate). Fallback if it fails: run the parse step out-of-process once and have the panel do all the Premiere work — only if the spike fails.
+**Decision:** build around **DOCX**. Optionally keep a PDF-yellow-fill path later as a last resort; not needed now.
 
 ---
 
-## Architecture
+## DOCX parsing (validated)
 
-A **new, standalone dockable panel**, separate from `premiere-bridge` (which is a dev/eval tool). Reuses the validated marker-transaction code verbatim.
+Reference implementation: `scripts/docx_extract_tc.py` (proven on `rivlin_transcript_selected_syncs.docx`).
+
+1. A `.docx` is a ZIP → read `word/document.xml`. (In-panel: bundle a tiny unzip lib, e.g. **`fflate`** ~30 KB.)
+2. Walk the table `w:tbl / w:tr / w:tc`.
+3. Per row: if a cell's text matches `^\d{2}:\d{2}:\d{2}:\d{2}$`, that's the row's `tc`; **carry it forward** to following rows that lack one.
+4. A run is "highlighted" if its `w:rPr` has `w:highlight="yellow"` **or** `w:shd w:fill` in the yellow set.
+5. Per `tc` block: `hl = any highlighted run`; `comment = first 5 words of the concatenated highlighted text`.
+6. Output rows `[{tc, hl, comment}]` in document order.
+
+> Edge case: a highlight spanning two rows that each carry their own `tc` yields a marker at **each** of those timecodes. Usually desired for syncs; flag if you'd rather collapse to one per contiguous highlight.
+
+---
+
+## Marker behavior (validated)
+
+Reference core: `scripts/drop_docx_markers.js`.
+
+- **Highlighted-only:** mark **only** the highlighted syncs; non-highlighted `tc` rows are ignored. (A "mark all timecodes" mode can be added later as an option, but is off by design.)
+- **Position:** `pos = tc2sec(tc) − sequence.zeroPoint`. Clamp `<0`→0; **skip** `> endTime`. `tc2sec` at 25 fps (the DOCX/PDF tc base).
+- **Dedupe** by frame (`round(pos*fps)`); on collision keep one marker + its comment (Premiere forbids two markers on one frame).
+- **Add** one comment-type marker per highlighted sync, carrying the 5-word comment.
+- **Recolor** every added marker to **red (index 1)** in a follow-up transaction.
+- **Existing markers:** default **clear-first** (idempotent re-runs), with an **append/merge** option (skip occupied frames).
+
+### Validated marker color API (PPro 2026 UXP)
+- `markers = await ppro.Markers.getMarkers(seq)`
+- `markers.createAddMarkerAction(name, type, startTickTime, durTickTime, comment)` — 5th arg comment works.
+- `marker.createSetColorByIndexAction(index)` — inside `executeTransaction`.
+- `marker.getStart()` / `getColorIndex()` / `getColor()` → `{red,green,blue}` 0–1.
+- All mutations: `project.lockedAccess(() => project.executeTransaction(tx => tx.addAction(action), "label"))`.
+
+### Validated color-index map
+| idx | color | | idx | color |
+|---|---|---|---|---|
+| 0 | olive-green (**default**) | | 4 | yellow/gold |
+| 1 | **red** (highlighted) | | 5 | white |
+| 2 | mauve/purple | | 6 | blue |
+| 3 | orange | | 7 | cyan |
+
+---
+
+## Architecture (independent, no bridge)
+
+Standalone UXP plugin. The `premiere-bridge` eval panel was used only to *discover/validate* the APIs this session — the shipped tool reimplements the logic in-panel and has **no** dependency on it.
 
 ```
 tc-marker-tool/
   manifest.json        # id tv.promots.tc-markers; panel entrypoint; localFileSystem fullAccess
   index.html           # UI
-  index.js             # UI logic + marker apply (reused transaction pattern)
-  lib/pdf.min.js       # bundled pdf.js (legacy)
-  lib/pdf.worker.min.js
-  pdfParse.js          # extractTimecodes(arrayBuffer) -> {timecodes, dividers, raw}
-  markers.js           # applyTcMarkers(...) — lifted from drop_tc_markers.js
+  index.js             # UI + DOCX parse + marker apply (in-panel)
+  lib/fflate.min.js    # bundled unzip (DOCX = ZIP)
+  docxParse.js         # extract [{tc,hl,comment}] from word/document.xml
+  markers.js           # applyMarkers() — from scripts/drop_docx_markers.js
   icons/
 ```
 
-### Parsing flow (`pdfParse.js`)
-1. `uxp.storage.localFileSystem.getFileForOpening()` → `file.read({format: binary})` → ArrayBuffer.
-2. pdf.js → concatenate text items across all pages.
-3. Regex all timecodes; filter out `TC` / `סוף קלטת`-adjacent ones; dedupe; sort.
-4. Return found list + excluded dividers + counts (nothing silently dropped).
+**Flow:** Load `.docx` → `fflate` unzip → parse `document.xml` → `[{tc,hl,comment}]` → read live `zeroPoint`/`endTime` → add markers → recolor + comment highlighted → report.
 
-### Marker flow (`markers.js`, logic unchanged from `drop_tc_markers.js`)
-- Read live `zeroPoint` / `endTime` / `timebase`.
-- `pos = tc2sec − zeroPoint`; clamp `<0` → 0, skip `> endSec`.
-- Dedupe by frame; one `executeTransaction` via `lockedAccess`.
-- Returns the same result object we've been verifying against.
-
----
-
-## Decisions (confirmed with user)
-
-| Topic | Decision |
-|-------|----------|
-| **Packaging** | Standalone UXP plugin = dockable panel `tv.promots.tc-markers` (this *is* the extension). |
-| **Marker content** | Name = source timecode (e.g. `16:36:13:00`), empty comment. |
-| **Existing markers** | **Append / merge** — keep existing, add new, skip any frame already occupied (Premiere forbids two markers on one frame). Re-running won't duplicate. Plus an optional "Clear all first" checkbox, defaulted **off**. |
-| **fps** | Auto from sequence timebase, default 25. |
+> UXP XML parsing: prefer DOMParser if available in the UXP build; otherwise a small namespaced walk (as in `docx_extract_tc.py`) over the inflated XML string.
 
 ---
 
 ## UI (single panel)
 
-- Active sequence name · zeroPoint TC · detected fps (top, with refresh).
-- **Load PDF** → shows: timecodes found, range (first→last), dividers excluded, out-of-range count.
-- Options: fps (auto, default 25), clear-existing toggle (default off), marker color/type.
-- **Apply markers** → result summary + log.
+- Header: active sequence name · zeroPoint TC · fps (refreshable).
+- **Load DOCX** → shows: total `tc` rows, highlighted count, range (first→last), out-of-range count.
+- Options: highlighted-marker color (default **red**), comment word-count (default **5**), clear-first vs append/merge, fps (default 25).
+- **Apply markers** → result summary (added / colored / skipped) + log.
 
 ---
 
-## Validation plan
+## Deployment to multiple Premiere machines
 
-1. **Spike** pdf.js text extraction in UXP against this exact PDF → confirm we recover all 334 timecodes and isolate the 4 dividers separately. **(go/no-go gate)**
-2. Wire parser → marker apply; re-run against "Ayala Hason_260526_01_camA" and confirm it reproduces the verified **308-placed / 26-out-of-range** result.
-3. Test on the Rubi PDF (different file) to confirm generality.
-4. **Fallback** if pdf.js won't cooperate in UXP: ship the parser as a tiny out-of-process step (parse once externally, plugin still does all Premiere work) — only if the spike fails.
+The tool must install cleanly on many editors' machines. Options, simplest → most "productized":
+
+1. **UXP Developer Tool (UDT) load** — per machine, "Add Plugin" → select folder → Load. Fine for a few machines / iteration; **unsigned, dev-only**, must re-load.
+2. **Packaged `.ccx` + UPIA install** — package the plugin (UDT can package), then install per machine with the **UnifiedPluginInstallerAgent (UPIA)** CLI. No marketplace, scriptable for fleet rollout. **Likely the right path for internal deployment.**
+3. **Private Adobe Exchange listing** — Adobe signs/hosts; editors install via Creative Cloud. Most turnkey for end users but requires a submission/signing flow.
+
+**Open item:** confirm signing requirements for option 2 on PPro 2026 (UXP plugins generally need signing for non-UDT install). Decide UDT-for-now vs packaged-`.ccx` for the rollout. Manifest needs a stable `id`, `version`, and proper icons before packaging.
+
+---
+
+## Validated this session (2026-06-14)
+
+Proven against `transcript_selected_texts/rivlin_transcript_selected_syncs.docx` → sequence **"Rubi Rivlin_camA_markers"** (zeroPoint 37757.08 s, end 8074.24 s):
+
+- DOCX: **3,093** `w:highlight="yellow"` runs · **222** table rows · **216** distinct `tc` · **44** highlighted.
+- Final behavior (highlighted-only): dropped **44** markers, all **red (1)** with first-5-words comments; 0 skipped, 0 dupes.
+- Verified by reading back: 44 markers, all colorIndex 1, comments present, timecodes frame-accurate. (Interim full-216 run was cleared.)
+- Marker color API + index map discovered and confirmed (above).
+
+Artifacts kept in repo: `scripts/docx_extract_tc.py`, `scripts/drop_docx_markers.js`.
+
+---
+
+## Validation plan (for the panel build)
+
+1. Bundle `fflate` + port `docx_extract_tc.py` logic to in-panel JS; confirm it reproduces 216 tc / 44 highlighted from the rivlin DOCX.
+2. Wire parser → `markers.js`; re-run on "Rubi Rivlin_camA_markers" and reproduce the 216/44 result with red + comments.
+3. Test a Google-Docs-exported DOCX (`w:shd` fill path).
+4. Package and test install on a second machine (option 2).
 
 ---
 
 ## Reference
 
-- Reused logic source: `scripts/drop_tc_markers.js`
-- Existing UXP panel for reference: `premiere-bridge/` (manifest, IPC, marker transaction pattern)
-- Marker API notes: memory `reference_ppro_uxp.md`, `project_premiere_bridge.md`
-- Validated marker pattern: `await ppro.Markers.getMarkers(seq)` → `createAddMarkerAction(name, type, tickTime, dur, comment)` → `project.lockedAccess(() => project.executeTransaction(tx => tx.addAction(action), label))`.
+- Validated scripts: `scripts/docx_extract_tc.py`, `scripts/drop_docx_markers.js`
+- Earlier hardcoded-list version: `scripts/drop_tc_markers.js`
+- API discovery panel (dev only): `premiere-bridge/`
+- Memory: `reference_ppro_uxp.md` (marker + color API), `project_premiere_bridge.md`
