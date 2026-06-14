@@ -95,7 +95,7 @@ $apply.addEventListener("click", async function () {
   try {
     const res = await applyMarkers(rows, {
       colorIndex: parseInt($color.value, 10),
-      clearFirst: true
+      clearFirst: false
     });
     const bits = [];
     if (res.cleared) bits.push(res.cleared + " cleared");
