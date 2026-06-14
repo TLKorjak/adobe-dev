@@ -33,8 +33,14 @@ No terminal, no bridge — a self-contained panel.
 
 ## Use
 1. Open the project; make the target sequence active (panel shows its name; ↻ refreshes).
-2. **Choose .docx…** → panel reports highlighted count / tc rows / range.
-3. Pick a color, choose clear-first vs append, **Drop markers**.
+2. **Click the upload area** → choose a `.docx`. The panel reports highlighted count / tc rows / range.
+3. Pick a color, toggle clear-first vs append, **Drop markers**. Result + an expandable JSON log appear at the bottom.
+
+## UI
+Dark "Serene Utility" design adapted from `ref_design/stitch_minimalist_adobe_plugin_redesign`.
+Styling is baked plain CSS + inline SVG icons (no Tailwind/Google-Fonts CDN — those are
+unreliable in UXP). The toggle is a custom CSS/JS switch; `<select>` may render with the
+host's native chrome.
 
 ## Validation status
 - DOCX parse + unzip pipeline validated under node against

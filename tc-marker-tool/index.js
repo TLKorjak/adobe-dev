@@ -8,23 +8,38 @@ const uxp = require("uxp");
 
 const $seq = document.getElementById("seq");
 const $refresh = document.getElementById("refresh");
-const $pick = document.getElementById("pick");
+const $dropzone = document.getElementById("dropzone");
+const $droptitle = document.getElementById("droptitle");
 const $fileinfo = document.getElementById("fileinfo");
 const $color = document.getElementById("color");
-const $clearFirst = document.getElementById("clearFirst");
 const $apply = document.getElementById("apply");
-const $result = document.getElementById("result");
+const $resultcard = document.getElementById("resultcard");
+const $resicon = document.getElementById("resicon");
+const $restitle = document.getElementById("restitle");
+const $resmsg = document.getElementById("resmsg");
+const $toggleLog = document.getElementById("toggleLog");
 const $log = document.getElementById("log");
 
-let rows = null;        // parsed [{tc,hl,comment}]
+const ICON_OK = "✓";
+const ICON_ERR = "✕";
+
+let rows = null;
 let fileName = null;
 
-function log() {
-  const parts = Array.prototype.slice.call(arguments).map(function (a) {
-    return typeof a === "string" ? a : JSON.stringify(a, null, 2);
-  });
-  $log.textContent += parts.join(" ") + "\n";
-  $log.scrollTop = $log.scrollHeight;
+// apply is a div-button (no native `disabled`); manage via class + flag
+function setApplyEnabled(on) {
+  if (on) $apply.classList.remove("disabled");
+  else $apply.classList.add("disabled");
+}
+function applyEnabled() { return !$apply.classList.contains("disabled"); }
+
+function setResult(ok, title, msg, detail) {
+  $resultcard.classList.remove("hidden");
+  $resicon.className = "resicon " + (ok ? "ok" : "err");
+  $resicon.innerHTML = ok ? ICON_OK : ICON_ERR;
+  $restitle.textContent = title;
+  $resmsg.textContent = msg || "";
+  $log.textContent = typeof detail === "string" ? detail : JSON.stringify(detail, null, 2);
 }
 
 async function refreshSeq() {
@@ -33,65 +48,72 @@ async function refreshSeq() {
     $seq.textContent = name || "(no active sequence)";
   } catch (e) {
     $seq.textContent = "error";
-    log("sequence read error:", String(e));
   }
 }
 
 $refresh.addEventListener("click", refreshSeq);
 
-$pick.addEventListener("click", async function () {
+// expandable technical log
+$toggleLog.addEventListener("click", function () {
+  const hidden = $log.classList.toggle("hidden");
+  $toggleLog.classList.toggle("open", !hidden);
+});
+
+// file pick + parse
+$dropzone.addEventListener("click", async function () {
   try {
     const file = await uxp.storage.localFileSystem.getFileForOpening({ types: ["docx"] });
     if (!file) return;
     fileName = file.name;
     const buf = await file.read({ format: uxp.storage.formats.binary });
     const u8 = new Uint8Array(buf);
-    const entries = fflate.unzipSync(u8, {
-      filter: function (f) { return f.name === "word/document.xml"; }
-    });
+    const entries = fflate.unzipSync(u8, { filter: function (f) { return f.name === "word/document.xml"; } });
     const docXml = entries["word/document.xml"];
     if (!docXml) throw new Error("word/document.xml not found — is this a .docx?");
-    const xml = fflate.strFromU8(docXml);
-    rows = parseDocxXml(xml);
+    rows = parseDocxXml(fflate.strFromU8(docXml));
     const s = summarize(rows);
-    $fileinfo.textContent =
-      fileName + " — " + s.highlighted + " highlighted sync(s) of " +
-      s.total + " tc rows (" + (s.first || "?") + " → " + (s.last || "?") + ")";
+    $droptitle.textContent = fileName;
     $fileinfo.classList.remove("muted");
-    $apply.disabled = s.highlighted === 0;
-    log("loaded:", fileName, "| highlighted:", s.highlighted, "| tc rows:", s.total);
+    $fileinfo.textContent =
+      s.highlighted + " sync(s) highlighted · " + s.total + " tc rows · " +
+      (s.first || "?") + " → " + (s.last || "?");
+    setApplyEnabled(s.highlighted > 0);
   } catch (e) {
-    $fileinfo.textContent = "Load failed: " + String(e);
-    log("load error:", String(e), e && e.stack);
     rows = null;
-    $apply.disabled = true;
+    setApplyEnabled(false);
+    $droptitle.textContent = "Select Marker Document";
+    $fileinfo.textContent = "Load failed: " + String(e);
+    setResult(false, "Load failed", String(e), (e && e.stack) || String(e));
   }
 });
 
+// apply
 $apply.addEventListener("click", async function () {
-  if (!rows) return;
-  $apply.disabled = true;
-  $result.textContent = "Working…";
+  if (!rows || !applyEnabled()) return;
+  setApplyEnabled(false);
+  setResult(true, "Working…", "", "");
   try {
     const res = await applyMarkers(rows, {
       colorIndex: parseInt($color.value, 10),
-      clearFirst: $clearFirst.checked
+      clearFirst: true
     });
-    $result.textContent =
-      "✓ " + res.markersAdded + " marker(s) added, " + res.colored + " colored" +
-      (res.cleared ? ", " + res.cleared + " cleared" : "") +
-      (res.skippedOutOfRange ? ", " + res.skippedOutOfRange + " out-of-range" : "") +
-      (res.skippedDuplicateFrame ? ", " + res.skippedDuplicateFrame + " dup-frame" : "") +
-      " — on “" + res.sequence + "”.";
-    log("result:", res);
+    const bits = [];
+    if (res.cleared) bits.push(res.cleared + " cleared");
+    if (res.skippedOutOfRange) bits.push(res.skippedOutOfRange + " out-of-range");
+    if (res.skippedDuplicateFrame) bits.push(res.skippedDuplicateFrame + " dup-frame");
+    setResult(
+      true,
+      "Last Action: Success",
+      res.markersAdded + " markers added to " + res.sequence +
+        (bits.length ? " (" + bits.join(", ") + ")" : ""),
+      res
+    );
   } catch (e) {
-    $result.textContent = "✗ " + String(e);
-    log("apply error:", String(e), e && e.stack);
+    setResult(false, "Last Action: Failed", String(e), (e && e.stack) || String(e));
   } finally {
-    $apply.disabled = false;
+    setApplyEnabled(true);
   }
 });
 
 // boot
 refreshSeq();
-log("TC Markers ready. ppro " + (require("premierepro").version || "?"));

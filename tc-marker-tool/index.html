@@ -1,45 +1,167 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8" />
-  <style>
-    body { font-family: -apple-system, sans-serif; font-size: 12px; padding: 10px; color: #ddd; background: #2b2b2b; }
-    h2 { margin: 0 0 10px 0; font-size: 14px; }
-    .row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
-    .seq { font-size: 11px; color: #9ad; word-break: break-all; }
-    .muted { color: #888; }
-    button { background: #444; color: #eee; border: 1px solid #555; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
-    button:hover { background: #555; }
-    button:disabled { opacity: 0.4; cursor: default; }
-    button.primary { background: #b5363a; border-color: #c0494d; }
-    button.primary:hover { background: #c8474b; }
-    select, input { background: #333; color: #eee; border: 1px solid #555; border-radius: 3px; padding: 3px; }
-    .info { font-size: 11px; color: #cfcfcf; margin: 4px 0; min-height: 16px; }
-    pre { background: #1e1e1e; color: #c5c5c5; padding: 8px; height: 150px; overflow: auto; font-size: 11px; margin: 6px 0 0 0; border: 1px solid #444; white-space: pre-wrap; }
-    hr { border: none; border-top: 1px solid #444; margin: 8px 0; }
-    label { display: flex; align-items: center; gap: 5px; }
-  </style>
+<meta charset="utf-8" />
+<style>
+  :root {
+    --bg: #1b1e20;
+    --surface-low: #202325;
+    --surface-container: #26292b;
+    --surface-high: #2e3133;
+    --surface-lowest: #161819;
+    --on-surface: #e3e5e8;
+    --secondary: #9aa0a4;
+    --on-variant: #c2c6c8;
+    --outline: #3a3f41;
+    --outline-strong: #4a4f51;
+    --btn-bg: #e6e8ea;
+    --btn-fg: #181f21;
+    --accent: #8fb3c4;
+    --ok: #7fce9f;
+    --ok-bg: rgba(127,206,159,0.14);
+    --err: #ff8a80;
+    --r: 8px; --r-lg: 16px;
+  }
+  * { box-sizing: border-box; }
+  html, body { width: 100%; overflow-x: hidden; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--on-surface);
+    font-size: 14px; line-height: 20px;
+  }
+  .muted { color: var(--secondary); }
+  .overline {
+    font-size: 13px; font-weight: 500; letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--secondary); margin: 0;
+  }
+
+  header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--outline);
+  }
+  header h1 { font-size: 20px; font-weight: 600; margin: 0; text-align: left; }
+
+  main { padding: 20px 16px; }
+
+  /* section rhythm via margins (UXP ignores flex `gap`) */
+  .seqcard, .dropzone, .config { margin-bottom: 20px; }
+
+  .card {
+    background: var(--surface-lowest);
+    border: 1px solid var(--outline);
+    border-radius: var(--r-lg);
+    padding: 16px;
+  }
+
+  /* sequence card */
+  .seqcard { display: flex; align-items: center; }
+  .seqcard .seqtext { flex: 1 1 auto; min-width: 0; overflow: hidden; }
+  .seqname { font-size: 16px; font-weight: 600; margin: 4px 0 0 0; word-break: break-all; overflow-wrap: anywhere; }
+
+  /* div-button (no native chrome to fight) */
+  .iconbtn {
+    width: 40px; height: 40px; flex: none; margin-left: 12px;
+    display: flex; align-items: center; justify-content: center;
+    background: transparent; color: var(--on-surface);
+    border: 1px solid var(--outline-strong); border-radius: var(--r);
+    cursor: pointer; font-size: 22px; line-height: 1;
+    -webkit-user-select: none; user-select: none;
+  }
+  .iconbtn:hover { background: var(--surface-high); }
+
+  /* dropzone */
+  .dropzone {
+    border: 2px dashed var(--outline-strong);
+    border-radius: var(--r-lg);
+    background: var(--surface-low);
+    padding: 28px 16px;
+    display: flex; flex-direction: column; align-items: center; text-align: center;
+    cursor: pointer;
+  }
+  .dropzone:hover { background: var(--surface-container); border-color: var(--accent); }
+  .upcircle {
+    width: 48px; height: 48px; border-radius: 999px;
+    background: var(--btn-bg); color: var(--btn-fg);
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 14px; font-size: 26px; line-height: 1;
+  }
+  .dropzone h3 { font-size: 16px; font-weight: 600; margin: 0 0 4px 0; }
+  .dropzone p { margin: 0; font-size: 14px; }
+
+  /* config */
+  .config .overline { display: block; margin-bottom: 8px; }
+  select {
+    width: 100%;
+    background: var(--surface-lowest); color: var(--on-surface);
+    border: 1px solid var(--outline); border-radius: var(--r);
+    padding: 12px 14px; font-size: 14px;
+  }
+
+  /* primary div-button */
+  .primary {
+    width: 100%; display: flex; align-items: center; justify-content: center;
+    background: var(--btn-bg); color: var(--btn-fg);
+    border-radius: var(--r);
+    padding: 16px; font-size: 16px; font-weight: 600; cursor: pointer;
+    -webkit-user-select: none; user-select: none;
+  }
+  .primary:hover { opacity: 0.9; }
+  .primary .check { margin-right: 8px; font-size: 18px; }
+  .primary.disabled { opacity: 0.35; cursor: default; }
+
+  /* result card */
+  .resultcard { display: flex; align-items: flex-start; margin-top: 4px; }
+  .resicon { flex: none; width: 32px; height: 32px; margin-right: 14px; border-radius: var(--r); display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .resicon.ok { color: var(--ok); background: var(--ok-bg); }
+  .resicon.err { color: var(--err); background: rgba(255,138,128,0.14); }
+  .resbody { flex: 1; min-width: 0; }
+  .restitle { font-size: 16px; font-weight: 600; margin: 0; }
+  .resmsg { margin: 4px 0 0 0; font-size: 14px; }
+  .linkbtn {
+    margin-top: 14px; color: var(--on-surface); font-size: 13px; font-weight: 500;
+    cursor: pointer; -webkit-user-select: none; user-select: none;
+  }
+  .linkbtn:hover { text-decoration: underline; }
+
+  pre.techlog {
+    margin: 8px 0 0 0; padding: 14px;
+    background: var(--surface-lowest); border: 1px solid var(--outline);
+    border-radius: var(--r); color: var(--on-variant);
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: 12px; line-height: 18px; max-height: 200px; overflow: auto;
+    white-space: pre-wrap; word-break: break-word;
+  }
+
+  .hidden { display: none !important; }
+</style>
 </head>
 <body>
-  <h2>TC Markers</h2>
+  <header>
+    <h1>TC Markers</h1>
+  </header>
 
-  <div class="row">
-    <span class="muted">Sequence:</span>
-    <span id="seq" class="seq">…</span>
-    <button id="refresh">↻</button>
-  </div>
+  <main>
+    <!-- Active sequence -->
+    <section class="card seqcard">
+      <div class="seqtext">
+        <p class="overline">Active Sequence</p>
+        <p id="seq" class="seqname">…</p>
+      </div>
+      <div id="refresh" class="iconbtn" role="button" title="Refresh sequence">↻</div>
+    </section>
 
-  <hr/>
+    <!-- Upload -->
+    <section id="dropzone" class="dropzone" role="button">
+      <div class="upcircle">↑</div>
+      <h3 id="droptitle">Select Marker Document</h3>
+      <p id="fileinfo" class="muted">No file loaded.</p>
+    </section>
 
-  <div class="row">
-    <button id="pick">Choose .docx…</button>
-  </div>
-  <div id="fileinfo" class="info muted">No file loaded.</div>
-
-  <hr/>
-
-  <div class="row">
-    <label>Color:
+    <!-- Config -->
+    <section class="config">
+      <label class="overline">Marker Color</label>
       <select id="color">
         <option value="1" selected>Red</option>
         <option value="3">Orange</option>
@@ -50,16 +172,25 @@
         <option value="7">Cyan</option>
         <option value="5">White</option>
       </select>
-    </label>
-    <label><input type="checkbox" id="clearFirst" checked/> Clear existing first</label>
-  </div>
+    </section>
 
-  <div class="row">
-    <button id="apply" class="primary" disabled>Drop markers</button>
-  </div>
+    <!-- Action -->
+    <div id="apply" class="primary disabled" role="button">
+      <span class="check">✓</span>
+      Process Markers
+    </div>
 
-  <div id="result" class="info"></div>
-  <pre id="log"></pre>
+    <!-- Result -->
+    <section id="resultcard" class="card resultcard hidden">
+      <div id="resicon" class="resicon ok"></div>
+      <div class="resbody">
+        <p id="restitle" class="restitle">Last Action</p>
+        <p id="resmsg" class="resmsg muted"></p>
+        <div id="toggleLog" class="linkbtn">View technical details ▾</div>
+        <pre id="log" class="techlog hidden"></pre>
+      </div>
+    </section>
+  </main>
 
   <script src="index.js"></script>
 </body>
