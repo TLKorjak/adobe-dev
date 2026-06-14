@@ -1,6 +1,6 @@
 # TC Marker Tool — Premiere Dockable Extension Plan (DOCX-primary)
 
-**Status:** Core pipeline validated end-to-end (see "Validated this session"). Panel not yet built.
+**Status:** Panel **built** at `tc-marker-tool/` (UDT-loadable). Parse pipeline validated under node; live in-Premiere test via UDT pending. Next: package `.ccx`.
 **Updated:** 2026-06-14
 **Goal:** An **independent, deployable UXP tool** for Premiere Pro 2026 — a dockable panel that loads a transcript **.docx**, finds the **yellow-highlighted syncs**, and drops a sequence marker on the active timeline for **each highlighted sync only**: **red (color 1) + a comment** (first 5 words of the highlighted text). Non-highlighted timecodes are ignored. Self-contained (no terminal, no `send.sh`, no eval bridge), installable on multiple Premiere machines.
 

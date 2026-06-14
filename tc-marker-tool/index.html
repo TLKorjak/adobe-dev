@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <style>
+    body { font-family: -apple-system, sans-serif; font-size: 12px; padding: 10px; color: #ddd; background: #2b2b2b; }
+    h2 { margin: 0 0 10px 0; font-size: 14px; }
+    .row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+    .seq { font-size: 11px; color: #9ad; word-break: break-all; }
+    .muted { color: #888; }
+    button { background: #444; color: #eee; border: 1px solid #555; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
+    button:hover { background: #555; }
+    button:disabled { opacity: 0.4; cursor: default; }
+    button.primary { background: #b5363a; border-color: #c0494d; }
+    button.primary:hover { background: #c8474b; }
+    select, input { background: #333; color: #eee; border: 1px solid #555; border-radius: 3px; padding: 3px; }
+    .info { font-size: 11px; color: #cfcfcf; margin: 4px 0; min-height: 16px; }
+    pre { background: #1e1e1e; color: #c5c5c5; padding: 8px; height: 150px; overflow: auto; font-size: 11px; margin: 6px 0 0 0; border: 1px solid #444; white-space: pre-wrap; }
+    hr { border: none; border-top: 1px solid #444; margin: 8px 0; }
+    label { display: flex; align-items: center; gap: 5px; }
+  </style>
+</head>
+<body>
+  <h2>TC Markers</h2>
+
+  <div class="row">
+    <span class="muted">Sequence:</span>
+    <span id="seq" class="seq">…</span>
+    <button id="refresh">↻</button>
+  </div>
+
+  <hr/>
+
+  <div class="row">
+    <button id="pick">Choose .docx…</button>
+  </div>
+  <div id="fileinfo" class="info muted">No file loaded.</div>
+
+  <hr/>
+
+  <div class="row">
+    <label>Color:
+      <select id="color">
+        <option value="1" selected>Red</option>
+        <option value="3">Orange</option>
+        <option value="4">Yellow</option>
+        <option value="0">Green</option>
+        <option value="6">Blue</option>
+        <option value="2">Purple</option>
+        <option value="7">Cyan</option>
+        <option value="5">White</option>
+      </select>
+    </label>
+    <label><input type="checkbox" id="clearFirst" checked/> Clear existing first</label>
+  </div>
+
+  <div class="row">
+    <button id="apply" class="primary" disabled>Drop markers</button>
+  </div>
+
+  <div id="result" class="info"></div>
+  <pre id="log"></pre>
+
+  <script src="index.js"></script>
+</body>
+</html>
