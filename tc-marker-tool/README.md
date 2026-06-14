@@ -38,17 +38,38 @@ No terminal, no bridge — a self-contained panel.
 
 ## UI
 Dark "Serene Utility" design adapted from `ref_design/stitch_minimalist_adobe_plugin_redesign`.
-Styling is baked plain CSS + inline SVG icons (no Tailwind/Google-Fonts CDN — those are
-unreliable in UXP). The toggle is a custom CSS/JS switch; `<select>` may render with the
-host's native chrome.
+Styling is baked plain CSS. **Inter** is bundled locally (`fonts/inter-{400,500,600}.woff2`,
+loaded via `@font-face`) so type renders identically on every machine — CDN fonts are
+unreliable in UXP, but local bundled fonts work. Icons are **text glyphs** (↻ ↑ ✓ ▾) because
+UXP drops several SVG path commands; the panel icon (`icons/`) is a flag marker PNG.
+Buttons are `<div role="button">` (plain `<button>` carries native chrome UXP won't let you
+restyle). `<select>` may still render with the host's native chrome.
 
 ## Validation status
 - DOCX parse + unzip pipeline validated under node against
   `rivlin_transcript_selected_syncs.docx` → 216 tc rows, 44 highlighted.
-- Marker add / color-by-index / comment + color-index map validated this session
+- Marker add / color-by-index / comment + color-index map validated
   on sequence "Rubi Rivlin_camA_markers".
+- **Deployed and run successfully on a second machine** via the `dist/` bundle below.
 
-## Next: packaging (.ccx)
-Once verified in UDT on a real machine, package via UDT (**••• ▸ Package**) to a
-`.ccx`, then install per machine (UPIA CLI for internal fleet, or a private
-Adobe Exchange listing). Signing is required for non-UDT installs — see the Dev Plan.
+## Packaging & deployment (.ccx)
+The plugin ships as a `.ccx` (a zip with `manifest.json` at the root). Two ways to build:
+- **UDT** (**••• ▸ Package**) → dev-signed `.ccx`, installs **without** Developer Mode.
+- **Self-zip** (what `dist/` contains) → unsigned `.ccx`; target machines need Premiere
+  **Developer Mode** enabled.
+
+### `dist/` — ready-to-hand-off bundle
+- `dist/tc-markers.ccx` — built from the plugin root.
+- `dist/INSTALL.md` — end-user guide (install = right-click the `.ccx` →
+  **Open With ▸ UnifiedPluginInstallerAgent.app**; UPIA ships with Creative Cloud).
+- `dist/TC-Markers-plugin.zip` — the two above, zipped for distribution.
+
+Rebuild after any change:
+```
+cd tc-marker-tool
+zip -r -X dist/tc-markers.ccx manifest.json index.html index.js docxParse.js markers.js lib icons fonts -x '.*'
+cd dist && zip -j -X TC-Markers-plugin.zip tc-markers.ccx INSTALL.md
+```
+Bump `version` in `manifest.json` each build so UPIA treats it as an update.
+For no-Developer-Mode, machine-wide install, use a UDT-signed `.ccx` or a private
+Adobe Exchange listing instead — see the Dev Plan.
