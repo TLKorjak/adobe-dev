@@ -25,6 +25,10 @@ async function applyMarkers(rows, opts) {
   var z = ppro.TickTime.TIME_ZERO;
   var zero = (await seq.getZeroPoint()).seconds;
   var endS = (await seq.getEndTime()).seconds;
+  var zeroFrame = Math.round(zero * fps);
+  // createWithSeconds truncates to a tick; 1 tick under a frame boundary shows as the
+  // previous frame. Nudge a fraction of a frame past the boundary to land on the right one.
+  var frameEps = 0.1 / fps;
 
   function tc2sec(tc) {
     var p = tc.split(":");
@@ -57,10 +61,11 @@ async function applyMarkers(rows, opts) {
   var items = [];
   var skipRange = 0, skipDup = 0;
   for (var r = 0; r < hlRows.length; r++) {
-    var pos = tc2sec(hlRows[r].tc) - zero;
-    if (pos < 0) pos = 0;
+    var posFrame = Math.round(tc2sec(hlRows[r].tc) * fps) - zeroFrame;
+    if (posFrame < 0) posFrame = 0;
+    var pos = posFrame / fps;            // frame-aligned seconds, relative to sequence start
     if (pos > endS) { skipRange++; continue; }
-    var key = Math.round(pos * fps);
+    var key = posFrame;
     if (seen[key] !== undefined) {
       var it = items[seen[key]];
       if (!it.comment) it.comment = hlRows[r].comment;
@@ -76,7 +81,7 @@ async function applyMarkers(rows, opts) {
   await project.lockedAccess(function () {
     project.executeTransaction(function (tx) {
       for (var i = 0; i < items.length; i++) {
-        var tt = ppro.TickTime.createWithSeconds(items[i].pos);
+        var tt = ppro.TickTime.createWithSeconds(items[i].pos + frameEps);
         tx.addAction(markers.createAddMarkerAction(items[i].name, T, tt, z, items[i].comment));
         added++;
       }
