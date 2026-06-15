@@ -6,7 +6,8 @@
 // transcripts are produced.
 
 var TC = /^\d{2}:\d{2}:\d{2}:\d{2}$/;
-var YELLOW_FILLS = { FFFF00: 1, FFFE00: 1, FFFF99: 1 };
+// shading fills that mean "no visible highlight" (so they don't count)
+var NON_HIGHLIGHT_FILLS = { AUTO: 1, FFFFFF: 1 };
 
 function decodeEntities(s) {
   return s
@@ -28,10 +29,14 @@ function textOf(frag) {
   return decodeEntities(s);
 }
 
+// True if the run carries ANY highlight color (not just yellow):
+// a Word <w:highlight> with any value except "none", or a <w:shd> fill that
+// isn't "auto"/white (Google Docs shading, and Word run shading).
 function runIsHighlighted(runXml) {
-  if (/<w:highlight\b[^>]*w:val="yellow"/.test(runXml)) return true;
-  var sh = /<w:shd\b[^>]*w:fill="([0-9A-Fa-f]{6})"/.exec(runXml);
-  if (sh && YELLOW_FILLS[sh[1].toUpperCase()]) return true;
+  var hi = /<w:highlight\b[^>]*\bw:val="([^"]+)"/.exec(runXml);
+  if (hi && hi[1].toLowerCase() !== "none") return true;
+  var sh = /<w:shd\b[^>]*\bw:fill="([^"]+)"/.exec(runXml);
+  if (sh && !NON_HIGHLIGHT_FILLS[sh[1].toUpperCase()]) return true;
   return false;
 }
 

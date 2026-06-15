@@ -1,8 +1,8 @@
 # TC Markers — Premiere Pro UXP panel
 
 Dockable panel for Premiere Pro 2026. Loads a transcript **.docx**, finds the
-**yellow-highlighted syncs**, and drops a colored **comment marker** on the
-active sequence for each one — default **red**, with the first 5 words of the
+**highlighted syncs** (any highlight color), and drops a colored **comment marker**
+on the active sequence for each one — default **red**, with the first 5 words of the
 highlighted text as the marker comment. Non-highlighted timecodes are ignored.
 
 No terminal, no bridge — a self-contained panel.
@@ -17,8 +17,9 @@ No terminal, no bridge — a self-contained panel.
 
 ## How it works
 1. Pick a `.docx` → read bytes → `fflate.unzipSync` → `word/document.xml`.
-2. Walk the table; carry the `tc` per row; a run is highlighted if it has
-   `w:highlight="yellow"` (Word) or a yellow `w:shd` fill (Google Docs).
+2. Walk the table; carry the `tc` per row; a run is highlighted if it has any
+   `w:highlight` (Word, any value except `none`) or any `w:shd` fill that isn't
+   `auto`/white (Google Docs shading, and Word run shading).
 3. For each highlighted sync: marker at `tc − sequence.zeroPoint` (25 fps),
    color = selected index (default red 1), comment = first 5 words.
 4. Frame-dedupe; clamp `<0`; skip beyond sequence end.

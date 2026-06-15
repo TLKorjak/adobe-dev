@@ -24,7 +24,7 @@ syncs**, and drops a colored **comment marker** on the active sequence for each 
 3. The Unified Plugin Installer window opens → click **Install**.
 
 4. (First time only) If install is blocked because the plugin is self-signed, enable
-   **Developer Mode** in Premiere: **Premiere Pro → Settings → General → Enable
+   **Developer Mode** in Premiere: **Premiere Pro → Settings → Plugins → Enable
    Developer Mode**, restart Premiere, then install again.
 
 5. Launch (or restart) Premiere Pro. Open the panel from
@@ -49,8 +49,8 @@ syncs**, and drops a colored **comment marker** on the active sequence for each 
 
 ## Notes
 - The `.docx` must contain a table where each row carries a timecode, and the syncs you
-  want marked are **highlighted** (Word highlight = yellow, or a yellow Google-Docs
-  shading). Non-highlighted rows are ignored.
+  want marked are **highlighted** in any color (Word highlight or Google-Docs/Word
+  shading — any color counts). Non-highlighted rows are ignored.
 - Timecodes are interpreted at **25 fps** and offset by the sequence's start time.
 - To **update** to a newer build, install the new `.ccx` the same way.
 
