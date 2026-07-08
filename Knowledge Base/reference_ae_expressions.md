@@ -1,0 +1,185 @@
+---
+name: AE Expression Knowledge Base
+description: Reusable After Effects expressions we've built and validated. Each entry: purpose, expression, notes/gotchas.
+type: reference
+originSessionId: 4be71d4c-d8d9-4e67-a271-f151b19502e2
+---
+# AE Expression Knowledge Base
+
+A growing collection of AE expressions we've authored and confirmed working. Add new entries here when an expression is validated in the timeline. (Auto-mirrored to `adobe-dev/Knowledge Base/` so it travels with the repo.)
+
+---
+
+## Limit Source Text to N lines (style-preserving)
+
+**Target property:** Text layer → Source Text
+**Purpose:** Truncates the text to its first N lines (here 2); extra lines are dropped. Preserves the layer's font/styling.
+
+```javascript
+var s = text.sourceText;
+var lines = ("" + s).split(/[\r\n]/);   // hard returns + Shift+Enter soft breaks
+lines.length > 2 ? s.createStyle().setText(lines.slice(0, 2).join("\r")) : s;
+```
+
+**Notes:**
+- AE Source Text uses `\r` (carriage return) as the hard line break, not `\n`. `` is the **soft** break (Shift+Enter). Word-wrap in paragraph/box text produces **no** break character, so this string-counting approach can't limit wrapped lines — it only counts explicit breaks.
+- **GOTCHA (verified AE 26.3, 2026-06-24): the receiver MUST be `text.sourceText`, NOT `value`.** `text.sourceText.createStyle().setText(...)` truncates correctly; `value.createStyle().setText(...)` **silently no-ops** (text stays full, no error). `getStyleAt(0,0).setText(...)` also no-ops.
+- **Do NOT return a plain string** (e.g. `lines.slice(0,2).join("\r")`): a string output rebuilds the text with a DEFAULT font, so non-default fonts (e.g. Hebrew `yes-DisplayRegular`) render as nothing — the text appears to vanish. Returning `text.sourceText`/`createStyle()` keeps the font.
+- `createStyle().setText(...)` returns a `TextDocument`, so the expression value is valid Source Text; the else-branch returns `text.sourceText` unchanged so styling is preserved when no truncation is needed.
+- It only clamps the **rendered** output — you can still type more lines in edit mode; it collapses on deselect.
+- Scripting can't verify this: `Property.value` / `valueAtTime(t,false)` and `sourceRectAtTime` do **not** reflect Source-Text-expression output. Verified by reading `valueAtTime` on a throwaway layer per-candidate.
+- Change both `2`s for a different line count. First applied 2026-05-11 to "name + description 01" in "Two Lines Title Awards"; corrected/verified form 2026-06-24.
+
+---
+
+## Shape width/height follows a text layer (+ padding), collapse to 0 when empty
+
+**Target property:** Shape layer → Contents → Rectangle 1 → Rectangle Path 1 → **Size**
+**Purpose:** A rectangle (background/matte band) whose Size tracks a text layer's rendered bounds + a fixed padding; width 0 (or height 0) when the text is empty.
+
+```javascript
+// WIDTH follows text (height untouched). Use [value[0], h + PAD] for HEIGHT-follows instead.
+var txt = thisComp.layer("TEXT1");
+var s = "" + txt.text.sourceText;
+var PAD = 103.489;   // bake = current shapeSize - current textComp size (preserves look). total padding (both sides)
+var w = (s.length === 0) ? 0 : (txt.sourceRectAtTime(time, false).width * txt.transform.scale[0] / 100 + PAD);
+[w, value[1]];
+```
+
+**Notes:**
+- `sourceRectAtTime` is the text's *local* bounds; multiply by `txt.transform.scale` to get comp-space size.
+- Bake `PAD` from the live current state so it's a **no-op at the current text** and only diverges when the text grows.
+- For height-follows (matte under a title), use `[value[0], h + PAD]` reading `.height`.
+- Empty check via `("" + txt.text.sourceText).length === 0` (works through a Source-Text source-link expression too — reads the live sourced text).
+- Validated 2026-06-29 (SPECIAL TICKER: Shape 1/TEXT1; Vertical_Two Lines mattes).
+
+---
+
+## Pin one edge so a shape grows from the opposite side
+
+**Target property:** Shape layer → Contents → Rectangle 1 → Transform → **Position** (`ADBE Vector Position`), i.e. the rectangle group's position *inside* the layer (NOT the layer Position).
+**Purpose:** Keep one edge of a rectangle fixed while its Size changes, so it grows toward the other side. Pairs with the Size expression above. Stays in **layer space**, so the layer's own Position is free (no coupling to layer/parent animation).
+
+```javascript
+// RIGHT edge pinned -> grows LEFT. (rect centered on its Position; rightEdge = pos.x + size/2)
+var sz = content("Rectangle 1").content("Rectangle Path 1").size;
+var RIGHT = 594;            // bake = current groupPos.x + size[0]/2 (rect right edge, layer space)
+[RIGHT - sz[0] / 2, value[1]];
+```
+```javascript
+// TOP edge pinned -> grows DOWN. PATHY = the Rectangle Path's static Position.y.
+var sz = content("Rectangle 1").content("Rectangle Path 1").size;
+var TOP = -83;              // bake = current rect top edge in layer space (groupPos.y + pathY - height/2)
+var PATHY = 14;
+[value[0], TOP + sz[1] / 2 - PATHY];
+```
+
+**Notes:**
+- `TOP`/`RIGHT` are **fixed design constants** — bake from a known/resting state, NOT from a currently-grown size (else the reference is wrong).
+- Because it works in layer space, the layer Position can stay static or be driven separately — used to keep a matte's layer position **static (immune to the matted text's position animation)** while the rect still grows to cover added lines.
+- Validated 2026-06-29 (Vertical_Two Lines: big/small lower matte = top-pinned grow-down; SPECIAL TICKER Shape 1 = right-pinned grow-left).
+
+---
+
+## Glue a shape's edge to a neighbor's edge (push-chain)
+
+**Target property:** Shape layer → **Position** (the layer transform position).
+**Purpose:** Make Shape B's right edge stay flush to Shape A's left edge, so B is pushed as A expands. (Shape A's right edge is pinned in its own layer; both have the right-pinned Size/group-pos expressions above.)
+
+```javascript
+// Shape B layer Position: right edge glued to Shape A's LEFT edge.
+var s1 = thisComp.layer("Shape 1");
+var s1Left = s1.transform.position[0] - s1.content("Rectangle 1").content("Rectangle Path 1").size[0] * s1.transform.scale[0] / 100;
+var GAP = 0.204;            // bake = current B.pos.x - s1Left
+[s1Left + GAP, value[1]];
+```
+```javascript
+// A text that rides inside Shape B: follow B's right edge at a fixed offset.
+var OFF = 43.177;           // bake = B.pos.x - thisText.pos.x
+[thisComp.layer("Shape 2").transform.position[0] - OFF, value[1]];
+```
+
+**Notes:**
+- No dependency cycle: B.pos ← A.left ← A.width ← textA; B.width ← textB; textB.pos ← B.pos. `sourceRect` is independent of position.
+- Validated 2026-06-29 (SPECIAL TICKER Shape 2/TEXT2 glued to Shape 1).
+
+---
+
+## Pin a text's baseline / bottom while it grows (point text)
+
+**Target property:** Text layer → **Position**
+**Purpose:** Keep the bottom edge (≈ last-line baseline + descender) of a point-text layer fixed at a comp Y; added lines grow the block **upward**.
+
+```javascript
+var sr = sourceRectAtTime(time, false);
+var bottomLayer = sr.top + sr.height;        // layer-space bottom edge
+var BOTTOM = 922.94;                          // comp Y to pin the bottom to (bake current, or a slider)
+[value[0], BOTTOM - (bottomLayer - anchorPoint[1]) * scale[1] / 100];
+```
+
+**Notes:**
+- Point text adds lines downward (top fixed), so `sr.height` grows; this shifts Position up to hold the bottom.
+- For a point text, the first-line baseline already sits at the anchor origin (layer y=0) — if you only want the FIRST line fixed with no expression, just keep anchor Y = 0 and don't move Position.
+- `BOTTOM` can be a slider (`thisComp.layer("private controls").effect("...")("Slider")`) for art-directable placement.
+- Validated 2026-06-29 (Vertical_Two/3-lines: small txt top, big text top — driven by "top/bottom title offset" sliders).
+
+---
+
+## Scale a position keyframe's START by line count (cap N)
+
+**Target property:** Text layer → **Position** (transform), OR Text → Animators → Animator 1 → **Position** (`ADBE Text Position 3D`).
+**Purpose:** A text that animates in (key1 = off-screen start, key2 = resting). Make the START offset grow with the line count (taller text starts proportionally further), capped at N lines, **without** touching the resting keyframe or the easing.
+
+```javascript
+// transform-Position variant (key-based slide-in)
+var endY = key(2).value[1];                 // resting Y
+var span = key(1).value[1] - endY;          // base start->rest slide
+var raw = "" + thisLayer.text.sourceText;
+var trimmed = raw.replace(/[\r]+$/, "");
+var lines = (trimmed.length === 0) ? 1 : trimmed.split(/[\r]/).length;
+var capped = Math.min(lines, 3);
+var LEADING = 160;                           // px per line (match the text's leading)
+var extra = (capped - 1) * LEADING;
+var p = clamp((value[1] - endY) / span, 0, 1);  // 1 at start, 0 from rest onward -> entrance only
+add(value, [0, p * extra]);
+```
+For a **text-animator** Position (3D), the keys live on `ADBE Text Position 3D`; same body but return `add(value, [0, p * extra, 0])`.
+
+**Notes:**
+- `clamp(p,0,1)` confines the offset to the entrance (key1→key2); rest/hold/exit keys read p=0 → untouched. Works for 2-key and 4-key (with exit) setups.
+- `p` is derived from the keyframed `value`, so it follows the **original easing** automatically.
+- Line counting reads `thisLayer.text.sourceText` — works even when Source Text is source-linked (reads the live sourced text). Strip trailing `\r`/`` before splitting.
+- Mid-script `setValue` text edits aren't seen by the expression in the same run (caching) — verify with the text already at the target line count, or live.
+- Validated 2026-06-29 (Vertical_Two Lines: big text bottom transform Position @2 lines=1306; small txt bottom Animator 1 Position).
+
+---
+
+## Null as a global "second position" offset (additive, no parenting)
+
+**Target property:** every group layer → **Position** (and split X/Y for separated-dim layers).
+**Purpose:** Move/keyframe a whole block of layers together via a control null, WITHOUT parenting — so each layer's own position expressions/keyframes/animators keep working (parenting reinterprets comp-space expressions/keyframes relative to the parent and breaks them).
+
+```javascript
+// Static or keyframed layer (combined Position):
+add(value, thisComp.layer("Null position").transform.position - [540, 960, 0]);
+```
+```javascript
+// Layer that already has a Position expression: wrap its result.
+var base = /* ...existing computed [x,y]... */;
+add(base, thisComp.layer("Null position").transform.position - [540, 960, 0]);
+```
+```javascript
+// Separated-dimension layer (combined Position is locked/hidden): set X and Y individually.
+// ADBE Position_0 (X):
+value + (thisComp.layer("Null position").transform.position[0] - 540);
+// ADBE Position_1 (Y):
+value + (thisComp.layer("Null position").transform.position[1] - 960);
+```
+
+**Notes:**
+- `- [540,960,0]` is the null's **rest/center**, so it's a no-op while the null sits there; move it to offset the group.
+- **Parented children:** if layer B is parented to layer A and A is in the group, add the offset to **A only** — B inherits via parenting; offsetting B too double-applies.
+- **Separated dimensions** (`pos.dimensionsSeparated`, common on 3D layers): the combined `ADBE Position` can't take an expression ("property is hidden" error, `canSetExpression=false`) — set `ADBE Position_0`/`_1` instead. Reading the combined `.value` does NOT reflect sub-property expressions; verify by reading `Position_0/_1.value`.
+- Don't ALSO parent the layers to the null — the expression is the link.
+- References the null **by name** — renaming the null breaks it.
+- Validated 2026-06-29 (Vertical_Two Lines title group; Vertical_ 3 lines Title block 4-12 incl. parented child + separated 3D layers, all shift by the null delta).
