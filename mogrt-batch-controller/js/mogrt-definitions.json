@@ -1,0 +1,299 @@
+{
+  "Autobus": {
+    "sourceFile": "Autobus_v1",
+    "controls": [
+      {
+        "name": "Channel Selection",
+        "type": 13,
+        "options": [
+          "MOVIES DRAMA",
+          "MOVIES ACTION",
+          "MOVIES COMEDY",
+          "MOVIES KIDS",
+          "TV DRAMA",
+          "TV ACTION",
+          "TV COMEDY",
+          "DOCU",
+          "YES VOD",
+          "TES GENERAL",
+          "YES + CINEMA",
+          "YES + DIAMONDS",
+          "VOD",
+          "VOD KIDS"
+        ]
+      },
+      {
+        "name": "VOD Path",
+        "type": 13,
+        "options": [
+          "NEW SERIES",
+          "NEW MOVIES",
+          "24/7",
+          "DOCU",
+          "MOVIE STORE",
+          "LONDON",
+          "MOVIES KIDS",
+          "VOD KIDS",
+          "VOD KIDS STORE",
+          "MYSTERY"
+        ]
+      },
+      {
+        "name": "VOD KIDS Path",
+        "type": 13,
+        "options": [
+          "VOD KIDS",
+          "MOVIES KIDS",
+          "STORE"
+        ]
+      },
+      {
+        "name": "Hebrew / English",
+        "type": 13,
+        "options": [
+          "Hebrew",
+          "English"
+        ]
+      },
+      {
+        "name": "Master text",
+        "type": 6
+      },
+      {
+        "name": "KIDS > TEENS",
+        "type": 1
+      },
+      {
+        "name": "NOW/SOON",
+        "type": 13,
+        "options": [
+          "NOW",
+          "SOON",
+          "NO_TEXT"
+        ]
+      }
+    ]
+  },
+  "End Frame": {
+    "sourceFile": "End Frame_v1",
+    "controls": [
+      {
+        "name": "Channels Selection",
+        "type": 13,
+        "options": [
+          "MOVIES DRAMA",
+          "MOVIES ACTION",
+          "MOVIES COMEDY",
+          "MOVIES KIDS",
+          "TV DRAMA",
+          "TV ACTION",
+          "TV COMEDY",
+          "DOCU",
+          "YES VOD",
+          "VOD KIDS",
+          "GENERAL YES",
+          "YES + CINEMA",
+          "YES + DIAMONDS",
+          "VOD"
+        ]
+      },
+      {
+        "name": "",
+        "type": 8
+      },
+      {
+        "name": "Channels Controls",
+        "type": 10
+      },
+      {
+        "name": "Show Name",
+        "type": 6
+      },
+      {
+        "name": "תאריך",
+        "type": 6
+      },
+      {
+        "name": "Describtion",
+        "type": 6
+      },
+      {
+        "name": "Channel Vod on /off",
+        "type": 1
+      },
+      {
+        "name": "Two Rows",
+        "type": 1
+      },
+      {
+        "name": "Double Verion",
+        "type": 1
+      },
+      {
+        "name": "Transition Title on/off",
+        "type": 1
+      },
+      {
+        "name": "Color Timeline Duration",
+        "type": 2,
+        "min": 0,
+        "max": 10
+      },
+      {
+        "name": "Vod Controls",
+        "type": 10
+      },
+      {
+        "name": "VOD Path",
+        "type": 13,
+        "options": [
+          "VOD - NEW MOVIES",
+          "VOD - NEW SERIES",
+          "VOD - 24/7",
+          "VOD - DOCU",
+          "VOD - MOVIE STORE",
+          "VOD - YES LONDON",
+          "MYSTERY (with yes vod)"
+        ]
+      },
+      {
+        "name": "NOW/SOON",
+        "type": 13,
+        "options": [
+          "NOW",
+          "SOON",
+          "NO TEXT"
+        ]
+      },
+      {
+        "name": "לצפייה עכשיו/בקרוב",
+        "type": 6
+      },
+      {
+        "name": "VOD KIDS Path",
+        "type": 13,
+        "options": [
+          "VOD KIDS",
+          "MOVIES KIDS",
+          "VOD STORE"
+        ]
+      },
+      {
+        "name": "Teens on /off ",
+        "type": 1
+      },
+      {
+        "name": "Pictures",
+        "type": 10
+      },
+      {
+        "name": "FG + Alpha.png",
+        "type": 14
+      },
+      {
+        "name": "BG clean",
+        "type": 14
+      },
+      {
+        "name": "Original Poster",
+        "type": 14
+      },
+      {
+        "name": "",
+        "type": 8
+      }
+    ]
+  },
+  "End Frame Yes Plus": {
+    "sourceFile": "End Frame Yes Plus_v1",
+    "controls": [
+      {
+        "name": "Title toggle",
+        "type": 1
+      }
+    ]
+  },
+  "Intro": {
+    "sourceFile": "Intro_v1",
+    "controls": [
+      {
+        "name": "Channel Selection",
+        "type": 13,
+        "options": [
+          "MOVIES DRAMA",
+          "MOVIES ACTION",
+          "MOVIES COMEDY",
+          "MOVIES KIDS",
+          "TV DRAMA",
+          "TV ACTION",
+          "TV COMEDY",
+          "DOCU",
+          "--------------------",
+          "VOD KIDS",
+          "GENERAL YES",
+          "YES + CINEMA",
+          "YES + DIAMONDS",
+          "VOD",
+          "YES PLUS"
+        ]
+      },
+      {
+        "name": "VOD Channel  Selection",
+        "type": 13,
+        "options": [
+          "NEW MOVIES",
+          "NEW SERIES",
+          "24/7",
+          "DOCU",
+          "MOVIE STORE",
+          "LONDON",
+          "MYSTERY"
+        ]
+      },
+      {
+        "name": "Intro Title",
+        "type": 1
+      },
+      {
+        "name": "Teens on/off",
+        "type": 1
+      },
+      {
+        "name": "introTitle (no VOD)",
+        "type": 6
+      },
+      {
+        "name": "NOW/SOON",
+        "type": 13,
+        "options": [
+          "NOW",
+          "SOON",
+          "NO TEXT"
+        ]
+      }
+    ]
+  },
+  "Subs": {
+    "sourceFile": "Subs_v1",
+    "controls": [
+      {
+        "name": "Subs Text",
+        "type": 6
+      },
+      {
+        "name": "Shadow Opacity",
+        "type": 2,
+        "min": 0,
+        "max": 100
+      },
+      {
+        "name": "Subs variations",
+        "type": 13,
+        "options": [
+          "Subs Default",
+          "Subs Yes Plus"
+        ]
+      }
+    ]
+  }
+}
