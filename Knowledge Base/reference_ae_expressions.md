@@ -3,6 +3,7 @@ name: AE Expression Knowledge Base
 description: Reusable After Effects expressions we've built and validated. Each entry: purpose, expression, notes/gotchas.
 type: reference
 originSessionId: 4be71d4c-d8d9-4e67-a271-f151b19502e2
+modified: 2026-07-20T08:32:43.115Z
 ---
 # AE Expression Knowledge Base
 
@@ -183,3 +184,66 @@ value + (thisComp.layer("Null position").transform.position[1] - 960);
 - Don't ALSO parent the layers to the null — the expression is the link.
 - References the null **by name** — renaming the null breaks it.
 - Validated 2026-06-29 (Vertical_Two Lines title group; Vertical_ 3 lines Title block 4-12 incl. parented child + separated 3D layers, all shift by the null delta).
+
+---
+
+## Merge per-character English styling into an existing line-limit Source Text expression
+
+**Target property:** Text layer → **Source Text**
+**Purpose:** Combine two independent techniques on one layer: (1) truncate to a max line count (pre-existing), (2) apply per-character font/size/tracking overrides so English letters render in a different font/size than the Hebrew base text — uppercase and lowercase get their own size slider, Hebrew keeps the base size.
+
+```javascript
+var src = text.sourceText;
+var limit = thisComp.layer("private controls").effect("lines limit")("Slider");
+var lines = ("" + src).split(/[\r\n]/);   // hard returns + Shift+Enter soft breaks
+var s = lines.length > limit ? lines.slice(0, limit).join("\r") : ("" + src);
+
+// base size for ALL chars first (createStyle starts empty; unsized chars would render at 0 and vanish)
+var baseSize = src.fontSize || 220;
+var styled = src.createStyle().setText(s).setFontSize(baseSize);
+// English letters: UPPERCASE -> caps slider, lowercase -> slider. Hebrew keeps base size.
+var enSizeLower = thisComp.layer("private controls").effect("english font size")("Slider");
+var enSizeCaps  = thisComp.layer("private controls").effect("english font size caps")("Slider");
+var enTracking  = thisComp.layer("private controls").effect("english tracking")("Slider");
+for (var i = 0; i < s.length; i++) {
+    var c = s.charCodeAt(i);
+    if (c >= 65 && c <= 90) {
+        styled = styled.setFont("Montserrat-Regular", i, 1).setFontSize(enSizeCaps, i, 1).setTracking(enTracking, i, 1);
+    } else if (c >= 97 && c <= 122) {
+        styled = styled.setFont("Montserrat-Regular", i, 1).setFontSize(enSizeLower, i, 1).setTracking(enTracking, i, 1);
+    }
+}
+styled;
+```
+
+**Notes:**
+- Order matters: compute the (possibly truncated) `s` FIRST, then build the per-character styled object FROM `s` — so the for-loop's character indices match the truncated string, not the original untruncated text.
+- `src.fontSize` (via `text.sourceText` self-reference) correctly reads the STATIC pre-expression configured size (confirmed 289 here, not 0). Reading `.fontSize` on the SAME property from a DIFFERENT layer's expression, or via `layer.property(...).value` externally while this expression is active, instead reads the EXPRESSION-EVALUATED "styled" (createStyle-built) result — which can report `0` for `.fontSize` even when uniformly sized, a reporting quirk of run-styled documents, not a real bug. Don't diagnose "is fontSize wrong" by probing from outside the layer's own expression; temporarily disable the expression and read the static value instead.
+- Adapt effect/layer names to the CURRENT comp's actual naming — this expression template gets reused across comps with inconsistent conventions (`"privateControls"` vs `"private controls"` with a space; a separate `"Master text"`/`"Show Name"` driver layer vs self-reference via `text.sourceText` when no such driver layer exists).
+- Validated 2026-07-20 ("show name" in "Vertical_End Frame").
+
+---
+
+## Stable anchor for mixed Hebrew/English per-character-sized text (avoid sourceRectAtTime height instability)
+
+**Target property:** Text layer → **Anchor Point**
+**Purpose:** Keep a text layer's anchor — and therefore its resting on-screen position — stable when per-character font-size overrides (e.g. English letters at a different size than the Hebrew base, see the expression above) change the rendered bounding box height. A naive `sourceRectAtTime`-based anchor shifts every time the Hebrew/English mix changes, even with no other edits to the layer.
+
+```javascript
+// Anchor Y = top edge + a baked per-line height, NOT the raw dynamic bounding-box height.
+// r.height fluctuates with per-character font-size mixing (English vs Hebrew); line count doesn't.
+var BASE_LINE_HEIGHT = 155.540010537952; // baked: single-line height measured with base-size-only text
+var LEADING = 200;                        // baked: Character panel leading value (autoLeading must be OFF)
+var s = "" + text.sourceText;
+var numLines = s.split(/[\r\n]/).length;
+var r = sourceRectAtTime(time, false);
+[ r.left + r.width/2, r.top + BASE_LINE_HEIGHT + (numLines - 1) * LEADING ];
+```
+
+**Notes:**
+- **Root cause:** an anchor expression like `[r.left + r.width/2, r.top + r.height]` (bottom-edge tracking) recomputes every time the rendered glyphs' size changes — mixing in per-character overrides (e.g. English letters styled smaller/larger via a different font/slider than the Hebrew base) changes `r.height`, moving the anchor even though the line count and Position expression haven't changed. A keyframe-based Position expression is often a no-op AT REST (see "Scale a position keyframe's START by line count" above — `p=0` once fully rested), so nothing compensates for this drift and the whole layer visibly shifts.
+- **Fix:** replace the dynamic `r.height` with `BASE_LINE_HEIGHT + (numLines - 1) * LEADING` — depends only on LINE COUNT (from a manual `\r`/`\n`/`` split, same pattern as the line-limit expression), never on which specific characters/sizes are on each line.
+- `BASE_LINE_HEIGHT` must be baked from the CURRENT single-line height (read via `sourceRectAtTime` with base-size-only text) so the fix is an exact no-op for existing single-line content — using `LEADING` alone for the first line too would cause a visible jump, since `leading` (the line-box height, includes extra spacing) is NOT the same as the tight glyph bounding-box height `sourceRectAtTime` reports (200 vs ~155.5 in this case).
+- **GOTCHA: `.leading` is NOT accessible on the expression-dialect `text.sourceText` object**, even though it works fine via full ExtendScript (`textDocProp.value.leading` from a script, outside an expression). Using `text.sourceText.leading` inside an expression throws `"couldn't turn result into numeric value"` and disables the expression — and the failure can look deceptively subtle: `.value` may still return a stale/last-good number even while `expressionError` is non-empty, so always check `expressionError` explicitly rather than trusting `.value` looking "fine". Hardcode the confirmed numeric leading value as a constant instead.
+- Residual caveat, not fully resolved: `r.top` itself is still read live and could theoretically shift slightly if an English capital renders with a notably different ascent than Hebrew's natural cap-height at the configured sizes — a much smaller effect than the height-driven shift this fixes, but not yet confirmed negligible in practice.
+- Validated 2026-07-20 ("show name" in "Vertical_End Frame") — before/after anchor values matched to floating-point precision for the current (Hebrew-only, single-line) text, confirming zero visual jump from applying this fix.
