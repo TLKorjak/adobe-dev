@@ -3,7 +3,7 @@ name: AE Expression Knowledge Base
 description: Reusable After Effects expressions we've built and validated. Each entry: purpose, expression, notes/gotchas.
 type: reference
 originSessionId: 4be71d4c-d8d9-4e67-a271-f151b19502e2
-modified: 2026-07-20T08:32:43.115Z
+modified: 2026-08-02T11:47:04.660Z
 ---
 # AE Expression Knowledge Base
 
@@ -193,7 +193,8 @@ value + (thisComp.layer("Null position").transform.position[1] - 960);
 **Purpose:** Combine two independent techniques on one layer: (1) truncate to a max line count (pre-existing), (2) apply per-character font/size/tracking overrides so English letters render in a different font/size than the Hebrew base text — uppercase and lowercase get their own size slider, Hebrew keeps the base size.
 
 ```javascript
-var src = text.sourceText;
+// PREFER reading src from a separate helper layer over self-reference — see Essential Properties note below
+var src = thisComp.layer("show name source text").text.sourceText;
 var limit = thisComp.layer("private controls").effect("lines limit")("Slider");
 var lines = ("" + src).split(/[\r\n]/);   // hard returns + Shift+Enter soft breaks
 var s = lines.length > limit ? lines.slice(0, limit).join("\r") : ("" + src);
@@ -217,10 +218,10 @@ styled;
 ```
 
 **Notes:**
+- **Essential Properties + Source Text SELF-reference — prefer a helper layer (confirmed 2026-08-02).** A Source Text expression that reads its OWN text via `var src = text.sourceText;` is not inherently wrong, but in at least one real case it evaluated incorrectly when the comp was nested and the text driven via **Essential Properties** (instance rendered ~31% larger than the master; correct inside the comp). Moving the editable text to a **separate helper layer** — e.g. `"show name source text"` — exposing THAT layer's Source Text to the Essential Graphics panel, and reading it cross-layer (`var src = thisComp.layer("show name source text").text.sourceText;`) made master and instances behave identically. Self-reference doesn't *have* to be avoided, but the helper-layer split is preferable for anything that will be driven through Essential Properties, to sidestep this class of issue. (An earlier attempted fix — hardcoding `baseSize` instead of `src.fontSize || 220` — was NOT sufficient on its own, though a constant/slider `baseSize` is still the right pattern; the `src.fontSize` self-read also evaluates as 0/falsy in-master, so never derive baseSize from the source document either way.)
 - Order matters: compute the (possibly truncated) `s` FIRST, then build the per-character styled object FROM `s` — so the for-loop's character indices match the truncated string, not the original untruncated text.
-- `src.fontSize` (via `text.sourceText` self-reference) correctly reads the STATIC pre-expression configured size (confirmed 289 here, not 0). Reading `.fontSize` on the SAME property from a DIFFERENT layer's expression, or via `layer.property(...).value` externally while this expression is active, instead reads the EXPRESSION-EVALUATED "styled" (createStyle-built) result — which can report `0` for `.fontSize` even when uniformly sized, a reporting quirk of run-styled documents, not a real bug. Don't diagnose "is fontSize wrong" by probing from outside the layer's own expression; temporarily disable the expression and read the static value instead.
-- Adapt effect/layer names to the CURRENT comp's actual naming — this expression template gets reused across comps with inconsistent conventions (`"privateControls"` vs `"private controls"` with a space; a separate `"Master text"`/`"Show Name"` driver layer vs self-reference via `text.sourceText` when no such driver layer exists).
-- Validated 2026-07-20 ("show name" in "Vertical_End Frame").
+- Adapt effect/layer names to the CURRENT comp's actual naming — this expression template gets reused across comps with inconsistent conventions (`"privateControls"` vs `"private controls"` with a space; the helper source layer's name also varies per comp: `"Master text"`, `"Show Name"`, `"show name source text"`).
+- Validated 2026-07-20 ("show name" in "Vertical_End Frame"); Essential-Properties fix validated 2026-08-02 (same layer, driven from comp "test").
 
 ---
 
