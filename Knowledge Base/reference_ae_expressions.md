@@ -3,7 +3,7 @@ name: AE Expression Knowledge Base
 description: Reusable After Effects expressions we've built and validated. Each entry: purpose, expression, notes/gotchas.
 type: reference
 originSessionId: 4be71d4c-d8d9-4e67-a271-f151b19502e2
-modified: 2026-08-02T11:47:04.660Z
+modified: 2026-08-10T14:03:43.517Z
 ---
 # AE Expression Knowledge Base
 
@@ -222,6 +222,26 @@ styled;
 - Order matters: compute the (possibly truncated) `s` FIRST, then build the per-character styled object FROM `s` — so the for-loop's character indices match the truncated string, not the original untruncated text.
 - Adapt effect/layer names to the CURRENT comp's actual naming — this expression template gets reused across comps with inconsistent conventions (`"privateControls"` vs `"private controls"` with a space; the helper source layer's name also varies per comp: `"Master text"`, `"Show Name"`, `"show name source text"`).
 - Validated 2026-07-20 ("show name" in "Vertical_End Frame"); Essential-Properties fix validated 2026-08-02 (same layer, driven from comp "test").
+
+---
+
+## Fill only ONE word among repeated instances, via Text Animator Range Selector "Subtract" mode (no expression needed)
+
+**Target property:** Text layer → Text Animators → (new animator) → **Fill Opacity**, with its **Range Selector → Advanced**
+**Purpose:** A single text layer holds one word repeated N times (e.g. via the per-character-tracking repeat technique above, spread both sides via center justification). Give ONE specific instance (typically the center one) a solid fill while all other repeated instances render fill-less/stroke-only — all within one layer, no per-character `createStyle()` fill toggling (AE's per-character style API has no fill on/off toggle, only fill *color*, so this can't be done via the Source Text expression itself).
+
+**Recipe (UI, not an expression):**
+1. Add a Text Animator to the layer. Set its **Fill Opacity** property to **0**.
+2. On that animator's Range Selector → Advanced: set **Based On = Words**, **Units = Index**.
+3. Set **Index Start / Index End** to bracket the ONE word to keep filled (0-indexed across the repeated words — e.g. for 5 repeats, index 2 is the center/3rd word).
+4. Set **Mode = Subtract**.
+
+**Notes:**
+- **The trick is Mode = Subtract.** Normally a Range Selector applies its animator property TO the selected range. Subtract mode inverts that: the property (here, Fill Opacity = 0) applies to the COMPLEMENT of the selection — i.e. to every word EXCEPT the one selected. The selected word is left untouched, defaulting back to Fill Opacity = 100 (fully filled), while every other repeated instance gets Fill Opacity = 0 (fill invisible; Stroke Opacity is untouched, so a stroke-enabled layer still shows hollow/outlined letters for the non-selected repeats).
+- Matches (in a single layer) what would otherwise require a multi-layer setup: one filled "hero" word layer + separate stroke-only duplicate layers.
+- `Based On: Words` + `Units: Index` is what makes the selector address whole repeated-word instances rather than characters or a percentage span — required since the repeats are separated by spaces within one string.
+- Works together with (not instead of) the document-level `applyFill`/`applyStroke` — the base document should have BOTH fill and stroke enabled; the animator's Fill Opacity=0 (via Subtract) is what selectively hides fill on the non-center instances, not the document-level toggle (which would affect all instances uniformly — that's the wrong tool for a per-instance result).
+- Discovered/validated 2026-08-10 (layer "Text 3", comp "slide title" — 5-repeat centered-spread word, per-character-tracking gap technique from the entry above, center word index 2 kept filled).
 
 ---
 
