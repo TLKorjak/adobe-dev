@@ -3,11 +3,30 @@ name: AE Expression Knowledge Base
 description: Reusable After Effects expressions we've built and validated. Each entry: purpose, expression, notes/gotchas.
 type: reference
 originSessionId: 4be71d4c-d8d9-4e67-a271-f151b19502e2
-modified: 2026-08-10T14:03:43.517Z
+modified: 2026-08-11T12:32:10.846Z
 ---
 # AE Expression Knowledge Base
 
 A growing collection of AE expressions we've authored and confirmed working. Add new entries here when an expression is validated in the timeline. (Auto-mirrored to `adobe-dev/Knowledge Base/` so it travels with the repo.)
+
+---
+
+## Word count that survives a blank leading (or trailing) line
+
+**Target property:** Slider Control driven by a text layer's word count (e.g. "Word count" on a `controls` layer), or any expression computing word count from Source Text.
+**Purpose:** Correctly counts words even when the top (or bottom) line of a multi-line Source Text is blank — a plain `split(/\s+/)` gives a wrong result (often `0`) in that case.
+
+```javascript
+txt = "" + text.sourceText;
+trimmed = txt.replace(/^\s+|\s+$/g, "");
+trimmed == "" ? 0 : trimmed.split(/\s+/).length;
+```
+
+**Notes:**
+- **Root cause:** `text.sourceText` for a blank first line is a string that *starts* with a hard-return character (`\r`) before the real content. Splitting a string that starts with whitespace via `split(/\s+/)` produces a **leading empty-string element** — so a naive check like `res[0] == "" ? 0 : res.length` misfires as "empty" whenever the top line is blank, even though real words follow on later lines.
+- Fix: trim leading/trailing whitespace (including line breaks) from the full string **before** checking emptiness or splitting, so the emptiness check reflects actual content, not just "does it start with a line break."
+- Validated on two separate comps/rigs: originally on "Two Lines Title", reused successfully on "Vertical_ 3 lines Title" (2026-08-11) — same fix, same root cause, different comp.
+- Related to but distinct from the [[ae-hebrew-english-line-highlight-bug]] direction fix — that one is about the **Lines-based Range Selector** miscounting with bidi text; this one is about **word-counting from a plain split** miscounting due to a leading line break. Both can show up together on the same "blank top line" text but are separate bugs with separate fixes.
 
 ---
 
@@ -30,6 +49,84 @@ lines.length > 2 ? s.createStyle().setText(lines.slice(0, 2).join("\r")) : s;
 - It only clamps the **rendered** output — you can still type more lines in edit mode; it collapses on deselect.
 - Scripting can't verify this: `Property.value` / `valueAtTime(t,false)` and `sourceRectAtTime` do **not** reflect Source-Text-expression output. Verified by reading `valueAtTime` on a throwaway layer per-candidate.
 - Change both `2`s for a different line count. First applied 2026-05-11 to "name + description 01" in "Two Lines Title Awards"; corrected/verified form 2026-06-24.
+
+---
+
+## Dropdown Menu Control — read selected item's TEXT directly (no index mapping needed)
+
+**Target property:** Any layer whose visibility/behavior should switch based on a Dropdown Menu Control's selected item.
+**Purpose:** Drive layer opacity (as an Enabled/visibility stand-in) by comparing the dropdown's selected **name**, not its numeric index — so reordering, adding, or removing dropdown items never breaks anything downstream.
+
+```javascript
+ddm = thisComp.layer("controls").effect("Title Animations")("Menu").text;
+ddm == "Kerning" ? 100 : 0
+```
+
+---
+
+## Source Text: font/align/per-char-size + auto RTL/LTR direction fix for mixed Hebrew+English/digit lines
+
+**Target property:** Text layer → Source Text
+**Purpose:** Combined rig — pulls font choice, alignment, and base size from `controls` slider/menu effects; per-character-resizes English letters (caps vs lowercase) via `privateControls` sliders; and fixes AE's native **Based On: Lines** Range Selector miscount when a line mixes Hebrew (RTL) with English letters or digits (LTR), by force-switching paragraph `direction` to LTR for mixed content — with a compensating swap on the Align option mapping so on-screen Left/Right stays consistent either way.
+
+```javascript
+var ctrl = thisComp.layer("controls");
+var src  = ctrl.text.sourceText;
+// --- Font selection ---
+var fontIdx = ctrl.effect("Font Selection")("Menu");
+var fonts = ["yes-DisplayRegular", "FbAlfi-Medium", "SimplerPro_V3-Bold"];
+var font  = fonts[Math.max(0, Math.min(fonts.length - 1, fontIdx - 1))];
+
+var s = "" + src;
+var hasHebrew = /[֐-׿]/.test(s);
+var hasLatin = /[A-Za-z0-9]/.test(s);
+var isMixed = hasHebrew && hasLatin;
+
+// --- Alignment ---
+var d = ctrl.effect("Align")("Menu");
+// under the LTR override (mixed text), justification is relative to reading order,
+// so Left/Right swap visually vs. the default RTL case — swap here to compensate
+var options = isMixed
+  ? ["alignRight", "alignCenter", "alignLeft"]
+  : ["alignLeft", "alignCenter", "alignRight"];
+var j = options[clamp(d - 1, 0, 2)];
+
+// base size for ALL chars first (createStyle starts empty; unsized chars would render at 0 and vanish)
+var baseSize = (fontIdx == 2) ? 300 : (src.fontSize || 420);
+// --- Apply (order matters: setText before setJustification) ---
+var styled = src.createStyle()
+  .setFont(font)
+  .setText(s)
+  .setFontSize(baseSize)
+  .setJustification(j);
+// English letters: UPPERCASE -> caps slider, lowercase -> slider. Hebrew keeps base size.
+var enSizeLower = thisComp.layer("privateControls").effect("english font size")("Slider");
+var enSizeCaps  = thisComp.layer("privateControls").effect("english font size caps")("Slider");
+var enTracking  = thisComp.layer("privateControls").effect("english tracking")("Slider");
+for (var i = 0; i < s.length; i++) {
+    var c = s.charCodeAt(i);
+    if (c >= 65 && c <= 90) {
+        styled = styled.setFontSize(enSizeCaps, i, 1).setTracking(enTracking, i, 1);
+    } else if (c >= 97 && c <= 122) {
+        styled = styled.setFontSize(enSizeLower, i, 1).setTracking(enTracking, i, 1);
+    }
+}
+styled = styled.setDirection(isMixed ? "left-to-right" : "right-to-left");
+styled;
+```
+
+**Notes:**
+- **Regex must include digits**, not just Latin letters: `/[A-Za-z0-9]/`. A letters-only class (`/[A-Za-z]/`) silently fails to detect a Hebrew+numeral line (e.g. `"111"` over `"שתי שורות"`) since digits aren't letters — but digits are still LTR under Unicode bidi rules and trigger the same Lines-based Range Selector miscount as English letters would.
+- `setDirection()` only accepts the literal strings `"left-to-right"` / `"right-to-left"` — not enum names, not numeric codes (see [[reference-ae-pseudo-dropdown]] history / [[reference-ae-text-paragraph-rtl]] for the equivalent scripting-side enum values `10212`/`10213`).
+- The Align swap is necessary because `setJustification` is relative to reading order, not the screen (per [[reference-ae-text-paragraph-rtl]]) — flipping direction for mixed text flips which physical side "alignLeft"/"alignRight" render on unless compensated.
+- Fixes the long-standing TODO in [[ae-hebrew-english-line-highlight-bug]] (now resolved) where mixed Hebrew+English/digit lines broke the "highlight line" color-animator Range Selector.
+- Validated 2026-08-11 on "Two Lines Title" → layer "2 lines down up", both pure-Hebrew and mixed Hebrew+digit text, all three Align states.
+
+**Notes:**
+- `effect("Name")("Menu").text` returns the selected item's **string**, not just `.value` (the numeric index). This works directly on a Dropdown Menu Control effect — no markers, no lookup array, no separate data layer needed.
+- Corrects earlier assumption (this session, 2026-08-11) that dropdown item text wasn't expression-accessible and required a marker- or text-layer-based index→name relay. That workaround is unnecessary — `.text` is the direct path.
+- Because the comparison is by name, the dropdown's item list can be freely reordered/edited in the Effect Controls UI (or via `setPropertyParameters`, see [[reference-ae-pseudo-dropdown]]) without touching any layer's expression, as long as the compared string still matches an existing item.
+- Used to toggle animation-variant layers on/off (e.g. "Kerning" vs other title animation options) in the new animation kit rigging work ([[project-animation-kit-rigging]]).
 
 ---
 
