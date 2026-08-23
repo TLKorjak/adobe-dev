@@ -1,0 +1,172 @@
+<!--
+  Hebrew-keyboard-typo fixer.
+  Run: just double-click this file to open it in your default browser (no install, no server needed).
+  Works both directions: text typed in English while the keyboard was set to Hebrew (converts back to English),
+  or text typed in Hebrew while the keyboard was set to English (converts to Hebrew). Use the toggle to switch.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Hebrew Keyboard Typo Fixer</title>
+<style>
+  body {
+    font-family: -apple-system, "Segoe UI", Arial, sans-serif;
+    max-width: 720px;
+    margin: 40px auto;
+    padding: 0 20px;
+    color: #222;
+  }
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  p.sub { color: #666; margin-top: 0; }
+  textarea {
+    width: 100%;
+    height: 120px;
+    font-size: 16px;
+    font-family: inherit;
+    padding: 10px;
+    box-sizing: border-box;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    direction: rtl;
+  }
+  #output {
+    width: 100%;
+    height: 120px;
+    font-size: 16px;
+    font-family: inherit;
+    padding: 10px;
+    box-sizing: border-box;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    background: #f7f7f7;
+    direction: ltr;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+  label { font-weight: 600; display: block; margin: 16px 0 6px; }
+  button {
+    margin-top: 10px;
+    padding: 8px 16px;
+    font-size: 14px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+    background: #fff;
+    cursor: pointer;
+  }
+  button:hover { background: #eee; }
+  #copyMsg { color: #2a7a2a; font-size: 13px; margin-left: 10px; }
+  .toggle {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .toggle button {
+    margin-top: 0;
+    flex: 1;
+    padding: 10px;
+  }
+  .toggle button.active {
+    background: #222;
+    color: #fff;
+    border-color: #222;
+  }
+</style>
+</head>
+<body>
+
+<h1>Hebrew Keyboard Typo Fixer</h1>
+<p class="sub">Paste text typed with the wrong keyboard layout active — it converts it back automatically as you type.</p>
+
+<div class="toggle">
+  <button id="modeHeToEn" class="active">Hebrew layout → English</button>
+  <button id="modeEnToHe">English layout → Hebrew</button>
+</div>
+
+<label id="inputLabel" for="input">Hebrew-layout text (what you got):</label>
+<textarea id="input" placeholder="ןא דקקצד אם נק ׳םרלןמע חודא כןמקץ"></textarea>
+
+<label id="outputLabel" for="output">Converted (what you meant):</label>
+<div id="output"></div>
+
+<button id="copyBtn">Copy result</button>
+<span id="copyMsg"></span>
+
+<script>
+// Hebrew-layout character -> the English key that produces it
+// (standard Israeli/SI-1452 keyboard layout)
+var hebrewToEnglish = {
+  "/": "q", "׳": "w", "ק": "e", "ר": "r", "א": "t", "ט": "y", "ו": "u", "ן": "i", "ם": "o", "פ": "p",
+  "]": "[", "[": "]",
+  "ש": "a", "ד": "s", "ג": "d", "כ": "f", "ע": "g", "י": "h", "ח": "j", "ל": "k", "ך": "l", "ף": ";",
+  "ז": "z", "ס": "x", "ב": "c", "ה": "v", "נ": "b", "מ": "n", "צ": "m", "ת": ",", "ץ": ".", ".": "/"
+};
+
+// English key -> the Hebrew character it produces (built by inverting the table above,
+// since each physical key maps to exactly one character in either layout)
+var englishToHebrew = {};
+for (var k in hebrewToEnglish) {
+  if (hebrewToEnglish.hasOwnProperty(k)) englishToHebrew[hebrewToEnglish[k]] = k;
+}
+
+var mode = "heToEn"; // "heToEn" or "enToHe"
+
+function convert(text, map) {
+  var out = "";
+  for (var i = 0; i < text.length; i++) {
+    var ch = text[i];
+    out += (map.hasOwnProperty(ch)) ? map[ch] : ch;
+  }
+  return out;
+}
+
+var input = document.getElementById("input");
+var output = document.getElementById("output");
+var inputLabel = document.getElementById("inputLabel");
+var outputLabel = document.getElementById("outputLabel");
+var modeHeToEn = document.getElementById("modeHeToEn");
+var modeEnToHe = document.getElementById("modeEnToHe");
+
+function update() {
+  var map = (mode === "heToEn") ? hebrewToEnglish : englishToHebrew;
+  output.textContent = convert(input.value, map);
+}
+
+function setMode(newMode) {
+  mode = newMode;
+  if (mode === "heToEn") {
+    modeHeToEn.classList.add("active");
+    modeEnToHe.classList.remove("active");
+    inputLabel.textContent = "Hebrew-layout text (what you got):";
+    outputLabel.textContent = "Converted (what you meant, in English):";
+    input.placeholder = "ןא דקקצד אם נק ׳םרלןמע חודא כןמקץ";
+    input.style.direction = "rtl";
+    output.style.direction = "ltr";
+  } else {
+    modeEnToHe.classList.add("active");
+    modeHeToEn.classList.remove("active");
+    inputLabel.textContent = "English-layout text (what you got):";
+    outputLabel.textContent = "Converted (what you meant, in Hebrew):";
+    input.placeholder = "akuo guko";
+    input.style.direction = "ltr";
+    output.style.direction = "rtl";
+  }
+  input.value = "";
+  update();
+}
+
+input.addEventListener("input", update);
+modeHeToEn.addEventListener("click", function() { setMode("heToEn"); });
+modeEnToHe.addEventListener("click", function() { setMode("enToHe"); });
+
+document.getElementById("copyBtn").addEventListener("click", function() {
+  navigator.clipboard.writeText(output.textContent).then(function() {
+    var msg = document.getElementById("copyMsg");
+    msg.textContent = "Copied!";
+    setTimeout(function() { msg.textContent = ""; }, 1500);
+  });
+});
+</script>
+
+</body>
+</html>
