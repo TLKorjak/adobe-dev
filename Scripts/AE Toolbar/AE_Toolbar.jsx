@@ -123,7 +123,7 @@ function buildUI(thisObj) {
     function makePairItem(copyFile, pasteFile) {
         var halfWidth = 58;
         var pairButtonHeight = BUTTON_HEIGHT + 10;
-        var frameWidth = halfWidth * 2 + 30; // 2 buttons + divider gap + comfortable side margins for the title
+        var frameWidth = halfWidth * 2 + 26; // 2 buttons + spacing + comfortable side margins for the title
         return {
             width: frameWidth,
             build: function (row) {
@@ -137,8 +137,6 @@ function buildUI(thisObj) {
                 copyBtn.helpTip = "Copy Ease";
                 copyBtn.preferredSize = [halfWidth, pairButtonHeight];
                 copyBtn.onClick = function () { runUtility(copyFile.fsName, "Copy Ease"); };
-
-                var divider = frame.add("statictext", undefined, "|");
 
                 var pasteBtn = frame.add("button", undefined, "Paste");
                 pasteBtn.helpTip = "Paste Ease";
