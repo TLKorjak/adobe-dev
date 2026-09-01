@@ -3,11 +3,38 @@ name: AE Expression Knowledge Base
 description: Reusable After Effects expressions we've built and validated. Each entry: purpose, expression, notes/gotchas.
 type: reference
 originSessionId: 4be71d4c-d8d9-4e67-a271-f151b19502e2
-modified: 2026-08-11T12:32:10.846Z
+modified: 2026-09-01T12:47:38.449Z
 ---
 # AE Expression Knowledge Base
 
 A growing collection of AE expressions we've authored and confirmed working. Add new entries here when an expression is validated in the timeline. (Auto-mirrored to `adobe-dev/Knowledge Base/` so it travels with the repo.)
+
+---
+
+## Vertically auto-center a text layer's Anchor Point to its own rendered bounds
+
+**Target property:** Text layer → Anchor Point
+**Purpose:** Keep a text block vertically centered on its Position regardless of how many lines actually render (e.g. paired with a "clamp to N lines" Source Text expression) — no manual re-centering needed each time line count changes.
+
+```javascript
+var rect = thisLayer.sourceRectAtTime(time, false);
+[value[0], rect.top + rect.height / 2, value[2]];
+```
+
+For a layer that is **not** 3D-enabled, drop the third element instead — Anchor Point is only `[x, y]` on a 2D layer:
+
+```javascript
+var rect = thisLayer.sourceRectAtTime(time, false);
+[value[0], rect.top + rect.height / 2];
+```
+
+**Notes:**
+- **Confirmed bug if you get this wrong:** using the 3-element version on a 2D layer throws `"Undefined value used in expression (could be an out of range array subscript?)"` — `value[2]` doesn't exist on a 2-element array. If unsure whether a layer is 3D, branch on `value.length` instead of hardcoding one form: `value.length > 2 ? [value[0], rect.top + rect.height/2, value[2]] : [value[0], rect.top + rect.height/2]`.
+- Only adjusts Y — X (`value[0]`) is left untouched, since this trick is specifically for vertical centering. Adapt symmetrically (`rect.left + rect.width/2`) if horizontal centering is also needed.
+- Safe to use even when a per-character/per-line Text Animator offsets some characters horizontally for a reveal/slide effect (confirmed on "slide by line left right", comp "Card Half 05") — `rect.top`/`rect.height` (vertical bounds) aren't affected by a purely-horizontal per-character offset.
+- If the layer's own Source Text is itself expression-driven (e.g. a line-count clamp), do NOT add a same-frame time offset like `time - thisComp.frameDuration` to try to dodge a suspected same-frame race condition — that instead risks sampling a time **before the layer's own `inPoint`**, where `sourceRectAtTime` returns a degenerate/undefined rect and throws the same "undefined value" error for a different reason. Sample at plain `time`.
+- **Scripted reads of `.expressionError` on this property can be badly stale** — after fixing a real bug, repeated script-side reads kept returning the exact same byte-for-byte old error message even after rewriting the expression, toggling `expressionEnabled` off/on, and nudging `comp.time`. Verify a fix in the actual AE UI, not via a scripted re-read.
+- Root project/history: [[project-animation-kit-rigging]].
 
 ---
 
