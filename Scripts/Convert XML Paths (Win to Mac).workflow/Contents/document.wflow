@@ -59,11 +59,24 @@
 				<key>ActionParameters</key>
 				<dict>
 					<key>COMMAND_STRING</key>
-					<string>SCRIPT="/Users/tlkorjak/Documents/Github/adobe-dev/Scripts/convert_pathurl_win_to_mac.py"
+					<string>SCRIPT="$HOME/Library/Services/Convert XML Paths (Win to Mac).workflow/Contents/Resources/convert_pathurl_win_to_mac.py"
+LOG="/tmp/convert_xml_paths_qa.log"
+echo "--- $(date) ---" &gt;&gt; "$LOG"
+OK=0
+FAIL=0
 for f in "$@"; do
-  /usr/bin/python3 "$SCRIPT" "$f"
+  if /usr/bin/python3 "$SCRIPT" "$f" &gt;&gt; "$LOG" 2&gt;&amp;1; then
+    OK=$((OK+1))
+  else
+    FAIL=$((FAIL+1))
+    echo "FAILED: $f" &gt;&gt; "$LOG"
+  fi
 done
-osascript -e 'display notification "Windows paths converted to Mac paths." with title "Convert XML Paths"'
+if [ "$FAIL" -eq 0 ]; then
+  osascript -e "display notification \"Converted $OK file(s).\" with title \"Convert XML Paths\""
+else
+  osascript -e "display notification \"$FAIL failed, $OK succeeded. See $LOG\" with title \"Convert XML Paths - Error\""
+fi
 </string>
 					<key>CheckedForUserDefaultShell</key>
 					<true/>
